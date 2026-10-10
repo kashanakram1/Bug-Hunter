@@ -21,6 +21,12 @@ npm start
 
 The root `.env` contains server credentials. `config:env` copies only the URL and publishable key into ignored `app/.env.local`; no secret or database password enters the browser. `.env.example` is a placeholder template.
 
+## Vercel deployment
+
+Set the project Root Directory to `app`, Framework Preset to Next.js, and Build Command to `npm run build`. Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` for the Production environment (and Preview if used). The `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` names are also supported. Builds and development startup automatically resolve and validate these two public settings; missing or invalid settings stop the build. Hosting variables take precedence over local `.env` files. No service key or database password is needed for frontend hosting.
+
+Environment changes require a new build/deployment because public settings are embedded in the static JavaScript. Add `https://bug-hunter-plum.vercel.app` under Supabase Authentication URL Configuration Redirect URLs for confirmation and recovery links from this host. Keep any other production/local redirects you use.
+
 ## Operator setup
 
 The Supabase schema and private official bank are already initialized for this workspace. All rounds begin in draft. Administrator access is reserved for the confirmed email provided in this conversation. Create/confirm that account through the application and sign in to reach the control room.
