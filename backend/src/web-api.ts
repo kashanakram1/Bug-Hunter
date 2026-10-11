@@ -15,7 +15,10 @@ function settings(request: Request): Settings {
   const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key || !secret || secret.startsWith('<')) throw new ApiError(503, 'The server connection is not configured. Contact the organizer.');
-  const origin = new URL(request.url).origin;
+  // Next's internal request URL can use localhost even when the browser uses 127.0.0.1.
+  // Host is the incoming routed host; never derive the expected origin from the Origin header.
+  const incoming = new URL(request.url);
+  const origin = new URL(`${process.env.VERCEL==='1'?'https:':incoming.protocol}//${request.headers.get('host') || incoming.host}`).origin;
   if (process.env.VERCEL === '1' && !origin.startsWith('https://')) throw new ApiError(400, 'HTTPS is required.');
   const forwarded=process.env.VERCEL==='1'?(request.headers.get('x-forwarded-for')||'').split(',')[0].trim():'';
   return { url: url.replace(/\/$/, ''), key, secret, origin, ip: isIP(forwarded) ? forwarded : '' };
