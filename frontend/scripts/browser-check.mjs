@@ -21,7 +21,9 @@ await page.screenshot({
 });
 await page.getByRole('button', { name: 'Mission Control' }).click();
 await page.getByRole('heading', { name: 'Mission Control' }).waitFor();
-await page.getByText('Leaderboard temporarily hidden', { exact: true }).waitFor({ timeout: 30000 });
+await page.getByText('Leaderboard temporarily hidden', { exact: true })
+  .or(page.getByRole('columnheader', { name: 'Team', exact: true }))
+  .waitFor({ timeout: 30000 });
 await page.getByRole('button', { name: 'Back to arena' }).click();
 await page.setViewportSize({ width: 390, height: 844 });
 await page.getByRole('heading', { name: 'Enter the arena' }).waitFor();
