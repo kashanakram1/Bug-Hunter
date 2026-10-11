@@ -10,7 +10,6 @@ import { PublicScreen } from '@/components/competition/public';
 import { Toaster } from '@/components/ui/sonner';
 import { LegalScreen } from '@/components/competition/information';
 import { api, currentSession } from '@/lib/auth';
-import { StaffMfa } from '@/components/competition/mfa';
 
 export default function Home() {
   const [session, setSession] = useState<any>(null),
@@ -130,7 +129,7 @@ export default function Home() {
             </button>
           </section>
         ) : boot?.role === 'admin' || boot?.role === 'judge' ? (
-          <StaffMfa><StaffPortal role={boot.role} /></StaffMfa>
+          <StaffPortal role={boot.role} />
         ) : boot?.team ? (
           <TeamPortal boot={boot} refreshBoot={refresh} />
         ) : (

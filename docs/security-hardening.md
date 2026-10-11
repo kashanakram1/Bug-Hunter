@@ -1,6 +1,6 @@
 # Security fixes: 11 October 2026
 
-The password minimum is six characters in both the form and server API, as requested. The API caps passwords at 72 UTF-8 bytes, matching bcrypt's input boundary. Staff passwords alone cannot authorize event operations: organizer/judge actions additionally require a verified TOTP authenticator and database JWT `aal2`.
+The password minimum is six characters in both the form and server API, as requested. The API caps passwords at 72 UTF-8 bytes, matching bcrypt's input boundary. At the organizer's request, staff use email/password without a mandatory authenticator challenge. Database staff/admin role checks remain enforced; mandatory second-factor protection is disabled.
 
 ## Sessions and requests
 
@@ -8,11 +8,11 @@ Vercel hosts a Next.js backend adapter to `backend/src/web-api.ts`. Authenticati
 
 Every JSON POST requires an exact same-origin Origin, a custom request header, and a non-cross-site Fetch Metadata value. Bodies are bounded at 40 KB before parsing; RPC names come from a fixed allowlist. Email signup/recovery uses PKCE and a browser-bound HttpOnly verifier cookie. Old already-issued implicit links are validated server-side, imported once, and removed from the address bar. PKCE links must be opened in the browser that requested them. Cookies and API responses are not cached. Provider failures do not log credentials or request bodies.
 
-The server holds the privileged key solely for gateway budgets, authentication forwarding, and limited public RPCs. Participant/staff RPCs use the user's token so SQL ownership and MFA remain authoritative. Vercel's trusted client IP is forwarded to Auth using its documented `Sb-Forwarded-For` mechanism; arbitrary IP headers are not trusted outside Vercel.
+The server holds the privileged key solely for gateway budgets, authentication forwarding, and limited public RPCs. Participant/staff RPCs use the user's token so SQL ownership and staff/admin authorization remain authoritative. Vercel's trusted client IP is forwarded to Auth using its documented `Sb-Forwarded-For` mechanism; arbitrary IP headers are not trusted outside Vercel.
 
-## MFA and recovery
+## Staff access
 
-After staff sign-in, the app offers authenticator setup or an existing-factor challenge. Scan the QR code or manually enter the setup key, then verify a six-digit code. A password reset does not bypass MFA. If a factor is lost, the Supabase project operator must verify identity before resetting the factor in the dashboard. No automatic email-only MFA bypass was added. Re-enrollment removes only unverified abandoned factors, not verified factors.
+Migration `202610110002_staff_password_access.sql` removes the mandatory JWT AAL2 check. The frontend opens authorized staff controls after password sign-in. Existing enrolled factors are preserved, and optional MFA API endpoints retain their verification and rate limits. This change reduces protection against stolen staff passwords.
 
 ## Durable request budgets
 
@@ -44,6 +44,6 @@ New audit writes omit full submitted answers, team rosters, contact fields, and 
 
 ## Rollout and verification
 
-Deploy the Next.js preset with Root Directory `frontend`, default Output Directory, and server-only `SUPABASE_SECRET_KEY`. Allow `/api/auth/callback` in Supabase redirects. Apply the new migration with the server rollout; the historical static export lacks the new API/MFA flow. Secret-key rotation invalidates encrypted sessions and requires sign-in again.
+Deploy the Next.js preset with Root Directory `frontend`, default Output Directory, and server-only `SUPABASE_SECRET_KEY`. Allow `/api/auth/callback` in Supabase redirects. Apply the new migration with the server rollout; the historical static export lacks the new API flow. Secret-key rotation invalidates encrypted sessions and requires sign-in again.
 
-Verification covers isolated database checks, API hardening checks, real production-build CSP/storage/MFA browser checks, a complete isolated competition workflow, dependency/secret scans, and a repeated 500-team local database concurrency test. Local results do not certify hosted Supabase Free capacity. Live Vercel inspection may encounter the provider security challenge; do not infer application response headers from its 403 page.
+Verification covers isolated database checks, API hardening checks, real production-build CSP/storage/staff-access browser checks, a complete isolated competition workflow, dependency/secret scans, and a repeated 500-team local database concurrency test. Local results do not certify hosted Supabase Free capacity. Live Vercel inspection may encounter the provider security challenge; do not infer application response headers from its 403 page.

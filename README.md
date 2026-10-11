@@ -51,7 +51,7 @@ Private content is stored separately in ignored `private/official-content.json`.
 
 **Set Root Directory to `frontend`**, select the Next.js preset, use `npm run build`, and leave Output Directory at the Next.js default (remove any `out` override). Set the two public Supabase variables and server-only `SUPABASE_SECRET_KEY` in Production (and Preview if used). Never prefix the secret key with `NEXT_PUBLIC_`. Rebuild after changing environment variables. The frontend and backend folders must both remain in the repository so the route adapters can import and trace the backend runtime.
 
-Set Supabase Auth Site URL to `https://bug-hunter-plum.vercel.app`; allow both that origin and `https://bug-hunter-plum.vercel.app/api/auth/callback`. Supabase handles email delivery through the configured SMTP service; SMTP/database/management credentials are unnecessary in Vercel. Apply the security migration together with this server deployment; old static builds do not support its gateway/MFA requirements.
+Set Supabase Auth Site URL to `https://bug-hunter-plum.vercel.app`; allow both that origin and `https://bug-hunter-plum.vercel.app/api/auth/callback`. Supabase handles email delivery through the configured SMTP service; SMTP/database/management credentials are unnecessary in Vercel. Apply the security migration together with this server deployment; old static builds do not support its session gateway. Mandatory staff MFA was removed at the organizer's request; database role checks remain enforced.
 
 ## Documentation and checks
 

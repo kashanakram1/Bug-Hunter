@@ -29,8 +29,7 @@ try{
  await page.getByRole('button',{name:'Mission Control',exact:true}).click();await page.getByText(payload,{exact:true}).waitFor();await page.getByText('<svg/onload=alert(1)>',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>window.__securityXss),0);assert.equal(await page.locator('.announcement img,.table-wrap svg[onload]').count(),0);
  await page.getByRole('button',{name:'Back to arena',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('staff@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');await page.getByRole('button',{name:'Sign in',exact:true}).click();
- await page.getByRole('heading',{name:'Verify your authenticator'}).waitFor();assert.equal(await page.getByRole('heading',{name:'Competition control.'}).count(),0);
- await page.getByLabel('Authenticator code').fill('123456');await page.getByRole('button',{name:'Verify and continue'}).click();await page.getByRole('heading',{name:'Competition control.'}).waitFor();
+ await page.getByRole('heading',{name:'Competition control.'}).waitFor();assert.equal(await page.getByRole('heading',{name:'Verify your authenticator'}).count(),0);
  assert.equal(await page.evaluate(()=>Object.keys(localStorage).some(k=>/^sb-.*-auth-token/.test(k))),false);assert.deepEqual(errors,[]);
- console.log('PASS production nonce CSP/security headers, legacy-token removal, six-character sign-in, XSS escaping, no persisted tokens, and staff MFA gate.');
+ console.log('PASS production nonce CSP/security headers, legacy-token removal, six-character sign-in, XSS escaping, no persisted tokens, and password-only staff access.');
 }finally{await browser.close();}
