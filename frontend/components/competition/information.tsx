@@ -103,7 +103,7 @@ export function LegalScreen({ kind }: { kind: 'privacy' | 'terms' }) {
           <h2>Services and browser storage</h2>
           <p>
             Supabase provides authentication and database services; Sites hosts the website.
-            Authentication sessions are stored in browser local storage to retain sign-in. Sign out
+            Authentication sessions use encrypted HttpOnly cookies to retain sign-in. Sign out
             when using a shared device. The application does not include advertising or marketing
             analytics.
           </p>

@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import { api } from './auth';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 export const configured = Boolean(url && key);
 export const supabase = configured
   ? createClient(url!, key!, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      // This anonymous client is used only for the public realtime signal.
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       global: { headers: { 'X-Client-Info': 'bughunt-web/1.0' } },
     })
   : null;
@@ -13,21 +15,7 @@ export const supabase = configured
 // Supabase verifies the JWT; every RPC independently enforces roles and team scope.
 export async function rpc<T = any>(name: string, params: Record<string, unknown> = {}): Promise<T> {
   if (!supabase) throw new Error('The competition connection has not been configured yet.');
-  const { data, error } = await supabase.rpc(name, params).abortSignal(AbortSignal.timeout(15000));
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === 'PGRST205')
-      throw new Error(
-        'The competition database is not initialized yet. Please contact the organizer.',
-      );
-    if (error.code === '23505')
-      throw new Error('That name or record already exists. Please choose another.');
-    if (error.code === '23514')
-      throw new Error('Please check the field lengths and required information.');
-    throw new Error(
-      error.message || 'Connection interrupted. Your input is still here; please retry.',
-    );
-  }
-  return data as T;
+  return api<T>('rpc/'+name,params);
 }
 export function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';

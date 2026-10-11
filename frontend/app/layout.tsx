@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './competition.css';
 import { CompetitionTools } from '@/components/competition/webmcp';
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Code Connect 26 | Bug Hunt 2026 Advanced',

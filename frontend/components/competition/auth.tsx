@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase, configured, message, rpc, rounds } from '@/lib/supabase';
 import { ErrorBox } from './common';
 import { Walkthrough } from './information';
+import { api, announceAuthChange } from '@/lib/auth';
 
 export function AuthScreen({
   recovery,
@@ -27,25 +28,16 @@ export function AuthScreen({
     const password = String(f.get('password') || '');
     try {
       if (recovery) {
-        const { error } = await supabase.auth.updateUser({ password });
-        if (error) throw error;
+        await api('auth/password', { password });
         onRecovered();
       } else if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await api('auth/login', { email, password });
+        announceAuthChange();
       } else if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: location.origin },
-        });
-        if (error) throw error;
+        await api('auth/signup', { email, password });
         setNotice('Check your email to confirm your account, then sign in to register your team.');
       } else {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: location.origin,
-        });
-        if (error) throw error;
+        await api('auth/recover', { email });
         setNotice(
           'If an account exists for this address, you will receive a password reset email.',
         );
@@ -137,9 +129,9 @@ export function AuthScreen({
                 name="password"
                 type="password"
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                minLength={12}
-                maxLength={128}
-                placeholder="At least 12 characters"
+                minLength={6}
+                maxLength={72}
+                placeholder="At least 6 characters"
                 required
               />
             </label>

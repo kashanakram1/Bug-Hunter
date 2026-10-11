@@ -34,10 +34,10 @@ function sql(text, db = database) {
     );
 }
 sql(`create database ${database};`, 'postgres');
-sql(`do $$ begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if; if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if; end $$;
+sql(`do $$ begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if; if not exists(select 1 from pg_roles where rolname='service_role') then create role service_role; end if; if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if; end $$;
  create schema auth; create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create table auth.sessions(id uuid primary key,user_id uuid);
  create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
- create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;`);
+ create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),'aal',coalesce(nullif(current_setting('request.jwt.claim.aal',true),''),'aal1')) $$;`);
 for (const file of readdirSync(new URL('backend/supabase/migrations/', root))
   .filter((x) => x.endsWith('.sql'))
   .sort())
@@ -81,6 +81,7 @@ async function call(user, name, args = {}, measure = true) {
       `select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claim.session_id',$2,true)`,
       [user.id, user.session],
     );
+    await client.query("select set_config('request.jwt.claim.aal',$1,true)",[user.id===admin.id?'aal2':'aal1']);
     await client.query('set local role authenticated');
     const entries = Object.entries(args);
     const result = await client.query(

@@ -2,11 +2,12 @@
 
 ```mermaid
 flowchart LR
-  Team[Team browser] --> CDN[Static Next.js frontend on CDN]
+  Team[Team browser] --> CDN[Next.js application on Vercel]
   Staff[Judge / admin browser] --> CDN
   Projector[Mission Control] --> CDN
-  CDN --> Auth[Supabase Auth]
-  CDN --> RPC[Permissioned PostgREST RPCs]
+  CDN --> API[Same-origin cookie session API]
+  API --> Auth[Supabase Auth]
+  API --> RPC[Permissioned PostgREST RPCs]
   RPC --> PG[Supabase PostgreSQL]
   PG --> Private[Private bughunt schema with RLS]
   PG --> Signal[Public timestamp-only control signal]
@@ -14,7 +15,7 @@ flowchart LR
   RT --> CDN
 ```
 
-The frontend is a static Next.js/React export. It has no server service key or application database connection. Supabase Auth handles credentials, email confirmation, token issuance, recovery, and refresh. PostgreSQL functions are the application server: every private entry point verifies `auth.uid()`, the JWT session ID, the corresponding `auth.sessions` record, and role or team ownership. Team mutations also require an active competition lease.
+The application uses Next.js/React with same-origin server adapters to `backend/src/web-api.ts`. Sessions are encrypted HttpOnly cookies; browser code receives no persisted access/refresh tokens. Supabase Auth handles password verification, PKCE email confirmation/recovery, refresh, and MFA. Server-only secrets are used for gateway budgets and public reads. Protected RPCs forward the user's JWT: every private database entry point verifies `auth.uid()`, the session ID, the corresponding `auth.sessions` record, and role or team ownership. Team mutations also require an active competition lease. Staff operations require `aal2`. See [security hardening](security-hardening.md) for CSRF, rate limits, and rollout details.
 
 All competition tables live in a schema with no anonymous/authenticated USAGE or table grants. RLS is enabled on every table with explicit deny-direct-access policies. Authorized security-definer RPCs return only the data appropriate for the caller, fix `search_path`, use qualified object names, and have explicitly revoked default PUBLIC EXECUTE privileges. The only public table is a timestamp-only realtime invalidation signal with read-only grants and explicit RLS policies. It contains no questions, keys, identities, or scores.
 
@@ -41,4 +42,4 @@ There is no per-second timer request: displays advance from a server time anchor
 
 There is no arbitrary code execution, practical lab, or automated hidden-test sandbox. Judges verify written fixes. Certificates use the browser's print-to-PDF capability, with persistent database verification IDs and QR links. Backup/PITR and SMTP are infrastructure settings; the application cannot enable them with a publishable or service key. The event's date, institution, branding, staff roster, and hosting audience remain organizer settings or operational decisions.
 
-The provided header policy uses inline script/style allowances required by the static Next.js export and UI primitives. It blocks objects and limits connections to Supabase, and must be validated on the actual hosting platform. Keep dependencies patched and run security review before an event involving personal information.
+The Next.js response configuration and proxy apply security headers and a per-response nonce CSP. Scripts have no unsafe-inline allowance; inline styles remain allowed for existing controls. Source maps are disabled. Local production-server header checks pass; the actual hosting responses must still be checked after deployment. Unused historical hosting integrations are archived and excluded from the active dependency tree.

@@ -9,6 +9,8 @@ import { StaffPortal } from '@/components/competition/staff';
 import { PublicScreen } from '@/components/competition/public';
 import { Toaster } from '@/components/ui/sonner';
 import { LegalScreen } from '@/components/competition/information';
+import { api, currentSession } from '@/lib/auth';
+import { StaffMfa } from '@/components/competition/mfa';
 
 export default function Home() {
   const [session, setSession] = useState<any>(null),
@@ -45,20 +47,19 @@ export default function Home() {
       return () => window.removeEventListener('hashchange', syncView);
     }
     let alive = true;
-    supabase.auth.getSession().then(({ data }) => {
+    const loadSession = () => currentSession().then((data) => {
       if (alive) {
         setSession(data.session);
+        setRecovery(data.recovery);
         setLoading(false);
       }
-    });
-    const { data } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s);
-      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
-    });
+    }).catch((e) => { if(alive){setError(message(e));setLoading(false);} });
+    void loadSession();
+    window.addEventListener('bughunt-auth-change', loadSession);
     return () => {
       alive = false;
       window.removeEventListener('hashchange', syncView);
-      data.subscription.unsubscribe();
+      window.removeEventListener('bughunt-auth-change', loadSession);
     };
   }, []);
   useEffect(() => {
@@ -73,12 +74,11 @@ export default function Home() {
     } catch {
       /* Expired leases are released automatically. */
     }
-    const { error } = await supabase!.auth.signOut();
-    if (error) setError(message(error));
-    else {
+    try {
+      await api('auth/logout');
       setBoot(null);
       setSession(null);
-    }
+    } catch(e) { setError(message(e)); }
   }
   return (
     <>
@@ -130,7 +130,7 @@ export default function Home() {
             </button>
           </section>
         ) : boot?.role === 'admin' || boot?.role === 'judge' ? (
-          <StaffPortal role={boot.role} />
+          <StaffMfa><StaffPortal role={boot.role} /></StaffMfa>
         ) : boot?.team ? (
           <TeamPortal boot={boot} refreshBoot={refresh} />
         ) : (

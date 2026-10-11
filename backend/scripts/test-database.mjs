@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 const workspace = new URL('../../', import.meta.url);
 const root = workspace;
 const db = new PGlite();
-await db.exec(`create role anon; create role authenticated; create schema auth;
+await db.exec(`create role service_role; create role anon; create role authenticated; create schema auth;
 create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
 create table auth.sessions(id uuid primary key,user_id uuid);
 create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
-create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;`);
+create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),'aal',coalesce(nullif(current_setting('request.jwt.claim.aal',true),''),'aal1')) $$;`);
 for (const name of readdirSync(new URL('backend/supabase/migrations/', root))
   .filter((n) => n.endsWith('.sql'))
   .sort()) {
@@ -79,6 +79,8 @@ async function as(who) {
   await query(
     `select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$2,false)`,
     [id, id ? sid(id) : ''],
+  );
+  await query("select set_config('request.jwt.claim.aal',$1,false)",[who==='admin'||who==='judge'?'aal2':'aal1']
   );
 }
 await as('a');

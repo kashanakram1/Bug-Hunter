@@ -2,8 +2,10 @@
 
 ## Before registration
 
-1. Confirm the production audience. Sites starts owner-private; attendees need an explicitly configured shared/public audience or a separately hosted static export. The application still requires Supabase login and organizer approval.
-2. Add exact production/local URLs to Supabase Auth redirect allowlists. Enable production SMTP, confirm sender-domain delivery, enable strong-password controls, and test confirmation and recovery from the actual URL. Existing accounts sign in with their configured passwords; the platform does not invent or email administrator passwords.
+Current hosting is the Next.js server application on Vercel. Set Root Directory `frontend`, the Next.js preset, default Output Directory (no `out` override), and private Production `SUPABASE_SECRET_KEY`. Staff must enroll and verify an authenticator at first sign-in; operators should rehearse verified-identity recovery for a lost factor. Password minimum is six characters as requested. See [security hardening](security-hardening.md) for the rollout and request budgets.
+
+1. Confirm the production audience on Vercel. The previous static Sites deployment is historical and does not support the new cookie backend. The current application requires Supabase login, organizer approval, and staff MFA.
+2. Add exact production/local URLs and their `/api/auth/callback` paths to Supabase Auth redirect allowlists. Use configured SMTP and test confirmation/recovery in the browser that requested the link. Email limit remains 50/hour. Existing accounts keep their configured passwords; changing the minimum does not reset them. The platform does not invent or email administrator passwords.
 3. Verify the selected administrator signs into the control room. Provision confirmed judge accounts using the private `staff` command; never add role-selection fields to signup.
 4. Verify all migration checksums and official question counts: R1 10/100, R2 6/200, R3 5/300, R4 arena 450 plus report 50; 12 known bugs. Have two independent reviewers check the imported paper, restored Python indentation, and rubric splits.
 5. Set the institution/event details with a new audited configuration migration if needed. Defaults deliberately avoid invented names, dates, logos, and signatures.

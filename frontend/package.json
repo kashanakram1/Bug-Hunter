@@ -3,16 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "24.x"
   },
   "scripts": {
-    "install:ci": "node scripts/install-ci.mjs",
+    "install:ci": "npm ci",
     "dev": "node scripts/next.mjs dev --port 5173",
     "build": "node scripts/next.mjs build",
-    "start": "node scripts/serve-static.mjs",
+    "start": "node scripts/next.mjs start --port 5173",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit",
-    "build:static": "node scripts/next.mjs build",
     "test:db": "node ../backend/scripts/test-database.mjs",
     "test:browser": "node scripts/browser-check.mjs",
     "test:workflow": "node ../backend/scripts/browser-workflow.mjs",
@@ -20,7 +19,9 @@
     "config:env": "node scripts/configure-env.mjs",
     "db:check": "node ../backend/scripts/database.mjs check",
     "db:migrate": "node ../backend/scripts/database.mjs migrate",
-    "db:seed": "node ../backend/scripts/database.mjs seed"
+    "db:seed": "node ../backend/scripts/database.mjs seed",
+    "test:security": "node ../backend/scripts/test-security.mjs",
+    "test:security-browser": "node scripts/security-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -31,7 +32,6 @@
     "clsx": "2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
-    "drizzle-orm": "0.45.2",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.31.0",
@@ -51,37 +51,19 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
-    "@cloudflare/workers-types": "4.20260515.1",
-    "@electric-sql/pglite": "^0.3.14",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
-    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.5",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.4.0",
-    "json-rpc-2.0": "1.7.1",
-    "pg": "^8.23.1",
     "prettier": "^3.9.9",
-    "raw-body": "3.0.2",
-    "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "tw-animate-css": "^1.4.0",
     "typescript": "5.9.3",
-    "vinext": "1.0.0-beta.5",
-    "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "typescript-eslint": "8.57.1",
+    "@eslint/js": "9.39.4"
   },
-  "type": "module",
-  "overrides": {
-    "miniflare": {
-      "sharp": "0.35.5"
-    }
-  }
+  "type": "module"
 }

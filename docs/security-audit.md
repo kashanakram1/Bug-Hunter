@@ -1,5 +1,7 @@
 # Bug Hunt 2026 security review
 
+Current review: [11 October 2026 re-verification](security-reverification.md). The report below is historical evidence for the original Sites deployment; its hosting findings do not describe the current Vercel deployment.
+
 Repository layout note: historical `app/` paths in this audit now correspond to `frontend/`; canonical SQL migrations are in `backend/supabase/migrations/`. The findings describe the original tested deployment.
 
 Reviewed on 9 October 2026 (Asia/Karachi), against deployed source commit `b8605b32bbb63e929715ceedc84cf3f7cd509c9d` and the live Supabase project. Website: https://bughunt-2026-arena.snappyhippo4.chatgpt.site.

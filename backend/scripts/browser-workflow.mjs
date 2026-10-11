@@ -27,8 +27,9 @@ async function call(identity, name, args = {}) {
         `select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claim.session_id',$2,true)`,
         [identity.id, identity.session],
       );
+      await c.query("select set_config('request.jwt.claim.aal',$1,true)",[identity.id===admin.id?'aal2':'aal1']);
       await c.query('set local role authenticated');
-    } else await c.query('set local role anon');
+    } else await c.query('set local role service_role');
     const entries = Object.entries(args);
     if (!/^bh_[a-z_]+$/.test(name) || entries.some(([k]) => !/^p_[a-z_]+$/.test(k)))
       throw Error('Invalid RPC');
@@ -64,70 +65,18 @@ const errors = [];
 async function context() {
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 960 } });
   await ctx.routeWebSocket(/.*supabase.*realtime.*/, (ws) => ws.close());
-  await ctx.route(base + '/**', async (route) => {
-    const req = route.request(),
-      url = new URL(req.url());
-    let body = {};
-    try {
-      body = req.postDataJSON() || {};
-    } catch {}
-    let result,
-      status = 200;
-    try {
-      if (url.pathname === '/auth/v1/token') {
-        const identity = [user, admin].find((u) => u.email === body.email);
-        if (!identity) throw Error('Unknown isolated test identity');
-        result = {
-          access_token: jwt(identity),
-          refresh_token: 'isolated-test-refresh',
-          token_type: 'bearer',
-          expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          user: {
-            id: identity.id,
-            email: identity.email,
-            role: 'authenticated',
-            aud: 'authenticated',
-            app_metadata: { provider: 'email' },
-            user_metadata: {},
-            identities: [],
-            created_at: new Date().toISOString(),
-          },
-        };
-      } else if (url.pathname === '/auth/v1/logout') result = {};
-      else if (url.pathname.startsWith('/rest/v1/rpc/')) {
-        const auth = req.headers().authorization;
-        const identity = auth ? [user, admin].find((u) => auth === 'Bearer ' + jwt(u)) : null; // Match payload below: timestamps can advance between requests.
-        let actual = identity;
-        if (!actual && auth) {
-          try {
-            const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64url').toString());
-            actual = [user, admin].find(
-              (u) => u.id === payload.sub && u.session === payload.session_id,
-            );
-          } catch {}
-        }
-        result = await call(actual, url.pathname.split('/').at(-1), body);
-      } else if (url.pathname === '/auth/v1/user') {
-        result = {
-          id: user.id,
-          email: user.email,
-          role: 'authenticated',
-          aud: 'authenticated',
-          app_metadata: {},
-          user_metadata: {},
-        };
-      } else throw Error('Unsupported isolated request');
-    } catch (e) {
-      status = 400;
-      result = { message: e.message, code: e.code || 'TEST_ERROR' };
-    }
-    await route.fulfill({
-      status,
-      contentType: 'application/json',
-      body: JSON.stringify(result ?? null),
-      headers: { 'Access-Control-Allow-Origin': '*' },
-    });
+  let identity=null;
+  await ctx.route('**/api/**',async route=>{
+    const p=new URL(route.request().url()).pathname;const body=route.request().postDataJSON()||{};
+    try{let result;
+      if(p==='/api/auth/login'){identity=[user,admin].find(u=>u.email===body.email);if(!identity)throw Error('Unknown isolated identity');result={session:{user:{id:identity.id,email:identity.email}}};}
+      else if(p==='/api/auth/session')result={session:identity?{user:{id:identity.id,email:identity.email}}:null,recovery:false};
+      else if(p==='/api/auth/logout'){identity=null;result={signedOut:true};}
+      else if(p==='/api/auth/mfa/status')result={verified:identity?.id===admin.id,factors:[]};
+      else if(p.startsWith('/api/rpc/'))result=await call(['bh_public_state','bh_verify_certificate'].includes(p.split('/').at(-1))?null:identity,p.split('/').at(-1),body);
+      else throw Error('Unknown isolated operation');
+      await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result??null)});
+    }catch(e){await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({message:e.message})});}
   });
   return ctx;
 }

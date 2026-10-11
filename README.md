@@ -11,25 +11,26 @@ All browser application files are under **[`frontend/`](frontend/README.md)**:
 - `lib/` and `hooks/`: Supabase browser client, data access, and realtime coordination.
 - `public/`: original event branding and static assets.
 - `scripts/`: frontend configuration, builds, previews, and browser checks.
-- `build/`, `vendor/`, and provider configuration: retained hosting integrations.
+- `app/api/`: thin route adapters for the server implementation in `backend/src/`.
 
 ```sh
 npm run setup
 npm run dev
 ```
 
-Use Node 22.13 or newer. Local development opens at http://localhost:5173. `npm run build` creates `frontend/out`; `npm start` previews it. Each package has its own lockfile; `npm run setup` installs both with `npm ci`.
+Use Node 24 LTS. Local development opens at http://localhost:5173. `npm run build` creates a Next.js server build in `frontend/.next`; `npm start` runs it. Each package has its own lockfile; `npm run setup` installs both with `npm ci`.
 
 ## Backend
 
 All database and privileged operator files are under **[`backend/`](backend/README.md)**:
 
 - `supabase/migrations/`: canonical, versioned SQL schema, RLS policies, scoring, deadlines, and authorized RPC functions.
+- `src/web-api.ts`: same-origin API, encrypted HttpOnly sessions, PKCE recovery, CSRF checks, MFA, and durable gateway limits.
 - `scripts/`: migrations, private content seeding, staff provisioning, and live API checks.
 - Database and workflow verification scripts use isolated test databases.
 - `legacy/sites/`: unused D1 starter examples retained for reference; not the competition backend.
 
-Supabase hosts authentication and the database; there is no separate Express server to deploy. The frontend calls authorized PostgreSQL functions, which enforce roles and team scope on the server.
+Supabase hosts authentication and the database. Vercel runs the Next.js API adapters, which call the backend server implementation. Protected operations forward the user's JWT to PostgreSQL; they do not use service privileges to bypass team authorization. Anonymous public reads and durable gateway budgets use the server-only key.
 
 ```sh
 npm run db:check
@@ -48,9 +49,9 @@ Private content is stored separately in ignored `private/official-content.json`.
 
 ## Vercel deployment
 
-**Set Root Directory to `frontend`**, select the Next.js preset, and use `npm run build`. Set the two public Supabase variables in Production (and Preview if used). The static build validates configuration before compiling. Rebuild after changing environment variables.
+**Set Root Directory to `frontend`**, select the Next.js preset, use `npm run build`, and leave Output Directory at the Next.js default (remove any `out` override). Set the two public Supabase variables and server-only `SUPABASE_SECRET_KEY` in Production (and Preview if used). Never prefix the secret key with `NEXT_PUBLIC_`. Rebuild after changing environment variables. The frontend and backend folders must both remain in the repository so the route adapters can import and trace the backend runtime.
 
-Set Supabase Auth Site URL to `https://bug-hunter-plum.vercel.app` and include that origin in Redirect URLs. Supabase handles email delivery through the project's configured SMTP service; no SMTP credentials belong on this frontend host.
+Set Supabase Auth Site URL to `https://bug-hunter-plum.vercel.app`; allow both that origin and `https://bug-hunter-plum.vercel.app/api/auth/callback`. Supabase handles email delivery through the configured SMTP service; SMTP/database/management credentials are unnecessary in Vercel. Apply the security migration together with this server deployment; old static builds do not support its gateway/MFA requirements.
 
 ## Documentation and checks
 

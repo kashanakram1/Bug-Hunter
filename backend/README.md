@@ -6,10 +6,12 @@ The live backend is Supabase Auth and PostgreSQL. SQL functions enforce authenti
 
 | Directory | Purpose |
 | --- | --- |
+| `src/web-api.ts` | Server-only session API, CSRF checks, MFA, and request budgets; hosted through Next.js adapters |
 | `supabase/migrations/` | Canonical schema, policies, and database business logic |
 | `scripts/database.mjs` | Safe migration, seeding, connectivity, and staff commands |
 | `scripts/live-check.mjs` | Read-only Supabase API checks |
 | `scripts/test-database.mjs` | Isolated database correctness and authorization tests |
+| `scripts/test-security.mjs` | MFA, rate-limiter, cookie, CSRF, and PKCE hardening checks |
 | `scripts/load-test.mjs` | 500-team isolated PostgreSQL load scenario |
 | `scripts/browser-workflow.mjs` | Full frontend workflow against isolated PostgreSQL |
 | `scripts/hosted-load.mjs` | Operator-run staging load checks |
