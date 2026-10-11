@@ -38,10 +38,10 @@ sql(`do $$ begin if not exists(select 1 from pg_roles where rolname='anon') then
  create schema auth; create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create table auth.sessions(id uuid primary key,user_id uuid);
  create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
  create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;`);
-for (const file of readdirSync(new URL('supabase/migrations/', root))
+for (const file of readdirSync(new URL('backend/supabase/migrations/', root))
   .filter((x) => x.endsWith('.sql'))
   .sort())
-  sql(readFileSync(new URL('supabase/migrations/' + file, root), 'utf8'));
+  sql(readFileSync(new URL('backend/supabase/migrations/' + file, root), 'utf8'));
 const literal = (v) => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";
 const content = JSON.parse(readFileSync(new URL('private/official-content.json', root), 'utf8'));
 let seed = 'begin;';

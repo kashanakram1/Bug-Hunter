@@ -1,0 +1,27 @@
+{
+  "name": "bughunt-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Supabase migrations, privileged operator commands, and database verification.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "db:check": "node scripts/database.mjs check",
+    "db:migrate": "node scripts/database.mjs migrate",
+    "db:seed": "node scripts/database.mjs seed",
+    "staff": "node scripts/database.mjs staff",
+    "test": "node scripts/test-database.mjs",
+    "test:load": "node scripts/load-test.mjs",
+    "test:workflow": "node scripts/browser-workflow.mjs",
+    "check:live": "node scripts/live-check.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.16",
+    "@playwright/test": "1.64.0"
+  }
+}

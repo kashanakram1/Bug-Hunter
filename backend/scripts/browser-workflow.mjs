@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 const fixtures = JSON.parse(
   readFileSync(new URL('../../private/load-fixtures.json', import.meta.url), 'utf8'),
 );
-const env = parseEnv(readFileSync(new URL('../.env.local', import.meta.url), 'utf8'));
+const env = parseEnv(readFileSync(new URL('../../frontend/.env.local', import.meta.url), 'utf8'));
 const base = env.NEXT_PUBLIC_SUPABASE_URL;
 const pool = new Pool({
   host: '127.0.0.1',

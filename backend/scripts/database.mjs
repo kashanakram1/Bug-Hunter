@@ -4,10 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 const workspace = new URL('../../', import.meta.url);
-const root =
-  existsSync(new URL('.env', workspace)) && existsSync(new URL('supabase/migrations/', workspace))
-    ? workspace
-    : new URL('../', import.meta.url);
+const root = workspace;
 const env = parseEnv(readFileSync(new URL('.env', root), 'utf8'));
 const raw = env.DATABASE_URL?.replace(
   /<new password>|<password>/gi,
@@ -69,11 +66,11 @@ if (mode === 'check') {
     if (ledger !== 't')
       throw new Error('Existing untracked bughunt schema found. Stopping without overwriting it.');
   }
-  const files = readdirSync(new URL('supabase/migrations/', root))
+  const files = readdirSync(new URL('backend/supabase/migrations/', root))
     .filter((x) => /^\d+.*\.sql$/.test(x))
     .sort();
   for (const file of files) {
-    const sql = readFileSync(new URL('supabase/migrations/' + file, root), 'utf8');
+    const sql = readFileSync(new URL('backend/supabase/migrations/' + file, root), 'utf8');
     const checksum = createHash('sha256').update(sql).digest('hex');
     if (exists === 't') {
       const old = run(

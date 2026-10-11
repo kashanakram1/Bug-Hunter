@@ -1,5 +1,7 @@
 # Bug Hunt 2026 security review
 
+Repository layout note: historical `app/` paths in this audit now correspond to `frontend/`; canonical SQL migrations are in `backend/supabase/migrations/`. The findings describe the original tested deployment.
+
 Reviewed on 9 October 2026 (Asia/Karachi), against deployed source commit `b8605b32bbb63e929715ceedc84cf3f7cd509c9d` and the live Supabase project. Website: https://bughunt-2026-arena.snappyhippo4.chatgpt.site.
 
 The main findings are missing enforced staff MFA, missing general application API rate limits, browser-readable persisted authentication tokens, missing deployed security headers, and vulnerable development dependencies. No exploitable SQL injection, XSS, cross-team object access, or anonymous mutation was demonstrated in the checks performed. This is a bounded source/configuration review with targeted tests, not a comprehensive penetration test or a guarantee that other vulnerabilities do not exist.

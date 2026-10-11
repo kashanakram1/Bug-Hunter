@@ -1,0 +1,21 @@
+{
+  "name": "code-connect-bug-hunt",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Code Connect 26: frontend and Supabase backend.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "setup": "node tools/project.mjs setup",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend start",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test": "npm --prefix backend test",
+    "test:browser": "npm --prefix frontend run test:browser",
+    "db:check": "npm --prefix backend run db:check",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:seed": "npm --prefix backend run db:seed"
+  }
+}

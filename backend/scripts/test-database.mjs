@@ -2,20 +2,18 @@ import { PGlite } from '@electric-sql/pglite';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
 const workspace = new URL('../../', import.meta.url);
-const root = existsSync(new URL('supabase/migrations/', workspace))
-  ? workspace
-  : new URL('../', import.meta.url);
+const root = workspace;
 const db = new PGlite();
 await db.exec(`create role anon; create role authenticated; create schema auth;
 create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
 create table auth.sessions(id uuid primary key,user_id uuid);
 create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;`);
-for (const name of readdirSync(new URL('supabase/migrations/', root))
+for (const name of readdirSync(new URL('backend/supabase/migrations/', root))
   .filter((n) => n.endsWith('.sql'))
   .sort()) {
   try {
-    await db.exec(readFileSync(new URL('supabase/migrations/' + name, root), 'utf8'));
+    await db.exec(readFileSync(new URL('backend/supabase/migrations/' + name, root), 'utf8'));
     console.log('Migration parsed:', name);
   } catch (e) {
     console.error('Migration failed:', name, e.message);

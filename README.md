@@ -1,77 +1,65 @@
-# Bug Hunt 2026
+# Code Connect 26 / Bug Hunt
 
-A four-round written debugging competition using Supabase Auth and PostgreSQL. Document B, practice activities, and executable contestant code are excluded. The official Document A questions and answer keys are loaded privately into Supabase.
+A four-round written debugging competition, with a Next.js frontend and a Supabase Auth / PostgreSQL backend. Document B and practical code execution are excluded.
 
-## Run locally
+## Frontend
 
-Requires Node 22.13+ and npm. Run from the `app` directory:
+All browser application files are under **[`frontend/`](frontend/README.md)**:
 
-```powershell
-npm ci
-npm run config:env
+- `app/`: pages, layout, and event styles.
+- `components/`: participant arena, organizer console, authentication, and reusable controls.
+- `lib/` and `hooks/`: Supabase browser client, data access, and realtime coordination.
+- `public/`: original event branding and static assets.
+- `scripts/`: frontend configuration, builds, previews, and browser checks.
+- `build/`, `vendor/`, and provider configuration: retained hosting integrations.
+
+```sh
+npm run setup
 npm run dev
 ```
 
-Open http://localhost:5173. For the optimized static build:
+Use Node 22.13 or newer. Local development opens at http://localhost:5173. `npm run build` creates `frontend/out`; `npm start` previews it. Each package has its own lockfile; `npm run setup` installs both with `npm ci`.
 
-```powershell
-npm run build
-npm start
+## Backend
+
+All database and privileged operator files are under **[`backend/`](backend/README.md)**:
+
+- `supabase/migrations/`: canonical, versioned SQL schema, RLS policies, scoring, deadlines, and authorized RPC functions.
+- `scripts/`: migrations, private content seeding, staff provisioning, and live API checks.
+- Database and workflow verification scripts use isolated test databases.
+- `legacy/sites/`: unused D1 starter examples retained for reference; not the competition backend.
+
+Supabase hosts authentication and the database; there is no separate Express server to deploy. The frontend calls authorized PostgreSQL functions, which enforce roles and team scope on the server.
+
+```sh
+npm run db:check
+npm run db:migrate
+npm test
+npm --prefix backend run staff -- judge@example.edu judge
 ```
 
-The root `.env` contains server credentials. `config:env` copies only the URL and publishable key into ignored `app/.env.local`; no secret or database password enters the browser. `.env.example` is a placeholder template.
+Never edit an applied migration. Add a new migration instead. Live destructive maintenance is not automated. The existing Supabase instance already contains the official question bank.
+
+## Configuration
+
+Keep server credentials in the ignored repository-root `.env`; use `.env.example` as a template. Never commit credentials. Frontend startup resolves only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (or their `NEXT_PUBLIC_` names), preferring hosting environment variables over local files. Management tokens, SMTP keys, service keys, and database credentials stay private.
+
+Private content is stored separately in ignored `private/official-content.json`. Database tests and seeding require this private file; it is intentionally absent from GitHub. Portable PostgreSQL tools and test fixtures are also local prerequisites documented in the runbook.
 
 ## Vercel deployment
 
-Set the project Root Directory to `app`, Framework Preset to Next.js, and Build Command to `npm run build`. Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` for the Production environment (and Preview if used). The `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` names are also supported. Builds and development startup automatically resolve and validate these two public settings; missing or invalid settings stop the build. Hosting variables take precedence over local `.env` files. No service key or database password is needed for frontend hosting.
+**Set Root Directory to `frontend`**, select the Next.js preset, and use `npm run build`. Set the two public Supabase variables in Production (and Preview if used). The static build validates configuration before compiling. Rebuild after changing environment variables.
 
-Environment changes require a new build/deployment because public settings are embedded in the static JavaScript. Add `https://bug-hunter-plum.vercel.app` under Supabase Authentication URL Configuration Redirect URLs for confirmation and recovery links from this host. Keep any other production/local redirects you use.
+Set Supabase Auth Site URL to `https://bug-hunter-plum.vercel.app` and include that origin in Redirect URLs. Supabase handles email delivery through the project's configured SMTP service; no SMTP credentials belong on this frontend host.
 
-## Operator setup
+## Documentation and checks
 
-The Supabase schema and private official bank are already initialized for this workspace. All rounds begin in draft. Administrator access is reserved for the confirmed email provided in this conversation. Create/confirm that account through the application and sign in to reach the control room.
+[`docs/`](docs/architecture.md) contains architecture, requirements, event operations, design, and security findings. Backend configuration and deployment changes do not remove the limitations recorded in the security audit.
 
-Add the production URL, `http://localhost:5173`, and `http://127.0.0.1:5173` to Supabase Authentication → URL Configuration → Redirect URLs. Configure a production email provider and review signup/login rate limits before opening registration to attendees. The production URL is recorded in the hosting configuration and handoff.
-
-From `app`, database commands use `psql` and the root environment, never print credentials, and preserve applied migration checksums:
-
-```powershell
-npm run db:check
-npm run db:migrate
-npm run db:seed
-node scripts/database.mjs staff judge@example.edu judge
-```
-
-The canonical migrations are in `supabase/migrations/`. Private official content lives in the ignored `private/official-content.json`; back it up securely outside public source control. The seed command preserves existing rows and refuses to run once a round has opened. Do not modify an applied migration; add a new one. No destructive maintenance is automated.
-
-## Included workflows
-
-- Email-confirmed team accounts, 2–4 members, approval, and administrator-managed staff access.
-- Server deadlines, stable shuffled Round 1 questions, atomic answer locks, idempotent submissions, three-attempt limits in Rounds 2–3, best-attempt scoring, and autosaved drafts.
-- Judge rubrics and private keys, equivalent-answer review, final claims, duplicate detection, one global critical-fix bonus, wrong-claim penalties, and a 150-word report limit.
-- Qualification, pause/resume, audited reopen/time/score overrides, announcements, private clarifications, session recovery, and activity review.
-- Mission Control, hidden/live standings, results export, finalization, special awards, and verifiable printable certificates with QR codes.
-- Low-volume realtime control notifications, bounded staggered polling fallback, and a static frontend suitable for CDN delivery.
-
-## Verification
-
-```powershell
+```sh
 npm run typecheck
-npm run test:db
+npm test
 npm run test:browser
 ```
 
-Database tests use isolated PGlite PostgreSQL, including authorization, RLS, deadlines, scoring, qualification, claims, and finalization. Browser checks require Chrome and a running built preview.
-
-The 500-team load test uses an isolated PostgreSQL 17 server on localhost, not the live Supabase project. See [load-test results](docs/load-test-results.json). To rerun on Windows:
-
-```powershell
-powershell -NoProfile -File app/scripts/isolated-postgres.ps1
-cd app
-npm run test:load
-npm run test:workflow
-```
-
-The portable PostgreSQL tools are under ignored `tools/`; they must be acquired separately in a fresh checkout. The full browser workflow uses simulated authentication transport with real isolated database functions. Live API checks separately verify the actual Supabase connection and anonymous restrictions. None of these checks replaces a hosted 10-team dry run, email-delivery test, backup/restore rehearsal, or a capacity test on the actual Supabase plan.
-
-See [requirements and resolved decisions](docs/requirements.md), [architecture](docs/architecture.md), and [event operations](docs/runbook.md).
+Browser checks require Chrome and a built local preview. Load/workflow tests require private fixtures and isolated PostgreSQL. The measured 500-team load results cover a local test database, not hosted Supabase capacity.

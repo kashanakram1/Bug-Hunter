@@ -11,17 +11,16 @@
     "build": "node scripts/next.mjs build",
     "start": "node scripts/serve-static.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
     "build:static": "node scripts/next.mjs build",
-    "test:db": "node scripts/test-database.mjs",
+    "test:db": "node ../backend/scripts/test-database.mjs",
     "test:browser": "node scripts/browser-check.mjs",
-    "test:workflow": "node scripts/browser-workflow.mjs",
-    "test:load": "node scripts/load-test.mjs",
+    "test:workflow": "node ../backend/scripts/browser-workflow.mjs",
+    "test:load": "node ../backend/scripts/load-test.mjs",
     "config:env": "node scripts/configure-env.mjs",
-    "db:check": "node scripts/database.mjs check",
-    "db:migrate": "node scripts/database.mjs migrate",
-    "db:seed": "node scripts/database.mjs seed"
+    "db:check": "node ../backend/scripts/database.mjs check",
+    "db:migrate": "node ../backend/scripts/database.mjs migrate",
+    "db:seed": "node ../backend/scripts/database.mjs seed"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
