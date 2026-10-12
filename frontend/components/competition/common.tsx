@@ -25,10 +25,10 @@ export function EventIdentity() {
 }
 export function Brand() {
   return (
-    <a href="/" className="brand" aria-label="Bug Hunt home">
+    <a href="/" className="brand" aria-label="Bug Hunter Module-5 home">
       <span>
-        BUG <span className="accent">HUNT</span> <span className="brand-year">2026</span>
-        <small>ADVANCED / CODE CONNECT 26</small>
+        BUG <span className="accent">HUNTER</span> <span className="brand-year">2026</span>
+        <small>MODULE-5 / CODE CONNECT 26</small>
       </span>
     </a>
   );

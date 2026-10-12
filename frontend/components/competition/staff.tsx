@@ -8,14 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useControlUpdates } from '@/lib/control-updates';
 
-export function StaffPortal({ role }: { role: string }) {
+export function StaffPortal({ role, online }: { role: string; online?: any }) {
   const [tab, setTab] = useState('overview'),
     [offset, setOffset] = useState(0),
     [response, setData] = useState<any>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
-    [action, setAction] = useState<any>(null),
-    [reason, setReason] = useState('');
+    [action, setAction] = useState<any>(null);
   const admin = role === 'admin';
   const requestVersion = useRef(0);
   const data = response?._tab === tab && response?._offset === offset ? response : null;
@@ -40,13 +39,12 @@ export function StaffPortal({ role }: { role: string }) {
     return () => clearInterval(timer);
   }, [refresh]);
   const act = (name: string, payload: any, label: string) => {
-    setReason('');
     setAction({ name, payload, label });
   };
   async function confirm() {
     setBusy(true);
     try {
-      await rpc('bh_admin', { p_action: action.name, p_payload: action.payload, p_reason: reason });
+      await rpc('bh_admin', { p_action: action.name, p_payload: action.payload, p_reason: 'Organizer action: ' + action.name });
       setAction(null);
       toast.success('Action recorded in the audit log');
       await refresh();
@@ -122,7 +120,7 @@ export function StaffPortal({ role }: { role: string }) {
           <button className="btn secondary small" onClick={refresh}>
             <></> Refresh
           </button>
-          {admin && (
+          {admin && !online?.enabled && (
             <button
               className="btn danger small"
               onClick={() => act('pause_all', {}, 'Pause every open round')}
@@ -196,7 +194,9 @@ export function StaffPortal({ role }: { role: string }) {
                                   {r.status}
                                 </Chip>
                               </header>
-                              {admin && <RoundActions round={r} act={act} />}
+                              {admin && (online?.enabled && r.id <= 3 ? (
+                                <p>Scheduled online round. Opening, closing, extensions, and qualification are automatic.</p>
+                              ) : <RoundActions round={r} act={act} />)}
                             </article>
                           ))}
                         </section>
@@ -366,7 +366,7 @@ export function StaffPortal({ role }: { role: string }) {
                               Allow {t.session_limit === 1 ? '2' : '1'} devices
                             </button>
                           </div>
-                          <TeamOverride team={t} act={act} />
+                          <TeamOverride team={t} act={act} online={online} />
                         </article>
                       ))}
                     </div>
@@ -616,18 +616,9 @@ export function StaffPortal({ role }: { role: string }) {
         <DialogContent className="modal">
           <DialogTitle>{action?.label}</DialogTitle>
           <DialogDescription>
-            This action will be saved with your identity and the reason below.
+            Confirm this action. Your identity and the change will be recorded automatically.
           </DialogDescription>
-          <label className="field">
-            Reason
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              minLength={3}
-              maxLength={1000}
-            />
-          </label>
-          <button className="btn" disabled={busy || reason.trim().length < 3} onClick={confirm}>
+          <button className="btn" disabled={busy} onClick={confirm}>
             {busy ? 'Applying…' : 'Confirm action'}
           </button>
           <ErrorBox error={error} />
@@ -707,7 +698,7 @@ function RoundActions({ round: r, act }: any) {
           >
             Extend all active timers
           </button>
-          {r.id > 1 && (
+          {r.id === 4 && (
             <button
               className="btn secondary small"
               onClick={() =>
@@ -726,9 +717,9 @@ function RoundActions({ round: r, act }: any) {
     </>
   );
 }
-function TeamOverride({ team, act }: any) {
+function TeamOverride({ team, act, online }: any) {
   const [amount, setAmount] = useState(''),
-    [r, setR] = useState('1'),
+    [r, setR] = useState(online?.enabled ? '4' : '1'),
     [seconds, setSeconds] = useState('300');
   return (
     <details>
@@ -763,7 +754,7 @@ function TeamOverride({ team, act }: any) {
           label="Round"
           value={r}
           onChange={setR}
-          options={[1, 2, 3, 4].map((x) => ({ value: String(x), label: `Round ${x}` }))}
+          options={(online?.enabled ? [4] : [1, 2, 3, 4]).map((x) => ({ value: String(x), label: `Round ${x}` }))}
         />
         <label className="field">
           Additional seconds
@@ -793,13 +784,12 @@ function TeamOverride({ team, act }: any) {
 }
 function SubmissionReview({ item: s, refresh }: any) {
   const [scores, setScores] = useState<Record<string, number>>({}),
-    [note, setNote] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   async function grade() {
     setBusy(true);
     try {
-      await rpc('bh_grade', { p_submission: s.id, p_scores: scores, p_note: note });
+      await rpc('bh_grade', { p_submission: s.id, p_scores: scores, p_note: 'Rubric review' });
       toast.success('Review recorded');
       await refresh();
     } catch (e) {
@@ -866,16 +856,11 @@ function SubmissionReview({ item: s, refresh }: any) {
           </label>
         ))}
       </div>
-      <label className="field">
-        Judge's note
-        <textarea value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
-      </label>
       <ErrorBox error={error} />
       <button
         className="btn"
         disabled={
           busy ||
-          !note.trim() ||
           s.rubric.some(
             (r: any) =>
               !Number.isFinite(scores[r.key]) || scores[r.key] < 0 || scores[r.key] > r.max,
@@ -894,7 +879,6 @@ function ClaimReview({ item: c, bugs, refresh }: any) {
   const [verdict, setVerdict] = useState('verified'),
     [bug, setBug] = useState(String(bugs[0]?.id || '')),
     [extra, setExtra] = useState(''),
-    [note, setNote] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   async function review() {
@@ -905,7 +889,7 @@ function ClaimReview({ item: c, bugs, refresh }: any) {
         p_verdict: verdict,
         p_bug: verdict === 'verified' ? Number(bug) : null,
         p_extra: extra || null,
-        p_note: note,
+        p_note: 'Claim review: ' + verdict,
       });
       await refresh();
       toast.success('Claim reviewed');
@@ -966,14 +950,10 @@ function ClaimReview({ item: c, bugs, refresh }: any) {
           )}
         </div>
       </div>
-      <label className="field">
-        Verification note
-        <textarea value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
-      </label>
       <ErrorBox error={error} />
       <button
         className="btn"
-        disabled={busy || !note.trim() || (verdict === 'extra' && extra.trim().length < 3)}
+        disabled={busy || (verdict === 'extra' && extra.trim().length < 3)}
         onClick={review}
       >
         Confirm verification

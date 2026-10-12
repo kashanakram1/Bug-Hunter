@@ -21,7 +21,9 @@
     "db:migrate": "node ../backend/scripts/database.mjs migrate",
     "db:seed": "node ../backend/scripts/database.mjs seed",
     "test:security": "node ../backend/scripts/test-security.mjs",
-    "test:security-browser": "node scripts/security-browser.mjs"
+    "test:security-browser": "node scripts/security-browser.mjs",
+    "test:online": "node ../backend/scripts/test-online-schedule.mjs",
+    "test:online-browser": "node scripts/online-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

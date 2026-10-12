@@ -43,6 +43,7 @@ for (const file of readdirSync(new URL('backend/supabase/migrations/', root))
   .sort())
   sql(readFileSync(new URL('backend/supabase/migrations/' + file, root), 'utf8'));
 const literal = (v) => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";
+sql('update bughunt.event set online_enabled=false,self_progression=false where id');
 const content = JSON.parse(readFileSync(new URL('private/official-content.json', root), 'utf8'));
 let seed = 'begin;';
 for (const q of content.questions) {

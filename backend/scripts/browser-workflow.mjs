@@ -142,7 +142,6 @@ await staff.getByRole('heading', { name: 'Competition control.' }).waitFor();
 await staff.getByRole('tab', { name: 'Review queue' }).click();
 await staff.getByLabel('Part A / 5').fill('5');
 await staff.getByLabel('Part B / 5').fill('5');
-await staff.getByLabel("Judge's note").fill('Correct equivalent explanation accepted.');
 await staff.getByRole('button', { name: 'Confirm score · 10/10' }).click();
 await staff.getByText('Review queue is clear', { exact: true }).waitFor();
 await staff.getByRole('tab', { name: 'Control room' }).click();
@@ -150,7 +149,6 @@ await staff
   .getByLabel('Message', { exact: true })
   .fill('Round one is complete. Please wait for qualification.');
 await staff.getByRole('button', { name: 'Publish announcement' }).click();
-await staff.getByLabel('Reason', { exact: true }).fill('Announce next step');
 await staff.getByRole('button', { name: 'Confirm action', exact: true }).click();
 await staff.getByRole('dialog').waitFor({ state: 'hidden' });
 assert.equal(
@@ -201,9 +199,6 @@ await team.getByRole('button', { name: 'Confirm submission' }).click();
 await team.getByRole('button', { name: 'Answer locked' }).waitFor();
 await staff.getByRole('tab', { name: 'Final claims' }).click();
 await staff.getByRole('combobox', { name: 'Match official bug' }).selectOption('3');
-await staff
-  .getByLabel('Verification note')
-  .fill('Correct identity validation and hash verification fix');
 await staff.getByRole('button', { name: 'Confirm verification', exact: true }).click();
 await staff.getByText('No claims awaiting review', { exact: true }).waitFor();
 await staff.getByRole('tab', { name: 'Review queue' }).click();
@@ -214,13 +209,11 @@ for (const [label, value] of [
   ['Clarity / 5', '5'],
 ])
   await staff.getByLabel(label, { exact: true }).fill(value);
-await staff.getByLabel("Judge's note").fill('Clear prioritization and concrete mitigation');
 await staff.getByRole('button', { name: 'Confirm score · 50/50' }).click();
 await staff.getByText('Review queue is clear', { exact: true }).waitFor();
 await adminAction('round', { round: 4, status: 'closed' });
 await staff.getByRole('tab', { name: 'Results', exact: true }).click();
 await staff.getByRole('button', { name: 'Finalize & issue certificates' }).click();
-await staff.getByLabel('Reason', { exact: true }).fill('All reviews complete');
 await staff.getByRole('button', { name: 'Confirm action', exact: true }).click();
 await staff.getByText('Action recorded in the audit log', { exact: true }).waitFor();
 const result = await call(user, 'bh_my_results');

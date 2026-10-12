@@ -18,7 +18,7 @@ try{
   else if(p==='/api/rpc/bh_public_state')data={server_time:new Date().toISOString(),event:{name:'Test',leaderboard_visible:true,results_released:false},rounds:[],announcements:[{id:'isolated',message:payload,created_at:new Date().toISOString()}],leaderboard:[{name:'<svg/onload=alert(1)>',rank:1,total_score:0,solved:0}],first_blood:[]};
   await r.fulfill({contentType:'application/json',body:JSON.stringify(data)});
  });
- const response=await page.goto('http://127.0.0.1:5173');
+ const response=await page.goto(process.env.BUGHUNT_TEST_URL || 'http://127.0.0.1:5173');
  const headers=await response.allHeaders();const csp=headers['content-security-policy'];
  assert.ok(csp.includes("'strict-dynamic'")&&!csp.includes("script-src 'self' 'unsafe-inline'"));
  for(const h of ['strict-transport-security','x-content-type-options','referrer-policy','permissions-policy','x-frame-options'])assert.ok(headers[h]);
@@ -30,6 +30,10 @@ try{
  assert.equal(await page.evaluate(()=>window.__securityXss),0);assert.equal(await page.locator('.announcement img,.table-wrap svg[onload]').count(),0);
  await page.getByRole('button',{name:'Back to arena',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('staff@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');await page.getByRole('button',{name:'Sign in',exact:true}).click();
  await page.getByRole('heading',{name:'Competition control.'}).waitFor();assert.equal(await page.getByRole('heading',{name:'Verify your authenticator'}).count(),0);
+ await page.getByRole('button',{name:'Pause all',exact:true}).click();
+ assert.equal(await page.getByLabel('Reason',{exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Confirm action',exact:true}).isEnabled(),true);
+ await page.getByRole('button',{name:'Confirm action',exact:true}).click();
  assert.equal(await page.evaluate(()=>Object.keys(localStorage).some(k=>/^sb-.*-auth-token/.test(k))),false);assert.deepEqual(errors,[]);
  console.log('PASS production nonce CSP/security headers, legacy-token removal, six-character sign-in, XSS escaping, no persisted tokens, and password-only staff access.');
 }finally{await browser.close();}

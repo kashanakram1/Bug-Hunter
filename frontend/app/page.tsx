@@ -129,7 +129,7 @@ export default function Home() {
             </button>
           </section>
         ) : boot?.role === 'admin' || boot?.role === 'judge' ? (
-          <StaffPortal role={boot.role} />
+          <StaffPortal role={boot.role} online={boot.online} />
         ) : boot?.team ? (
           <TeamPortal boot={boot} refreshBoot={refresh} />
         ) : (
@@ -137,7 +137,7 @@ export default function Home() {
         )}
       </main>
       <footer className="site-footer">
-        <span>CODE CONNECT 26 / BUG HUNT ADVANCED</span>
+        <span>CODE CONNECT 26 / BUG HUNTER MODULE-5</span>
         <div className="actions">
           <a href="/?legal=terms">Terms of use</a>
           <a href="/?legal=privacy">Privacy notice</a>

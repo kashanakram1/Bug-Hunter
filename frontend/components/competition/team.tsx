@@ -6,6 +6,7 @@ import { rpc, message, rounds, uuid } from '@/lib/supabase';
 import { Announcements, Chip, Confirm, Empty, ErrorBox, Loading, Timer } from './common';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { eventTime } from '@/lib/event-plan';
 import { useControlUpdates } from '@/lib/control-updates';
 
 export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () => void }) {
@@ -18,8 +19,13 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
     [tab, setTab] = useState('arena'),
     [offline, setOffline] = useState(false),
     [finish, setFinish] = useState(false);
+  const activityQueue = useRef<{ p_round: number; p_kind: string; p_request: string }[]>([]);
+  const flushingActivity = useRef(false);
   const edits = useRef<Record<string, Record<string, string>>>({});
   const requestVersion = useRef(0);
+  const clockAnchor = useRef({ server: 0, local: 0 });
+  const expiredRefresh = useRef('');
+  const [serverNow, setServerNow] = useState(0);
   const data = response?._viewRound === round ? response : null;
   const refresh = useCallback(async () => {
     const version = ++requestVersion.current;
@@ -104,34 +110,115 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
   }, [refresh]);
   const session = data?.session;
   const current = data?.round;
+  const online = data?.online || boot.online;
+  const scheduled = Boolean(online?.enabled);
+  const progression = scheduled || Boolean(boot.event?.self_progression || data?.self_progression);
   useEffect(() => {
-    if (!round || !lease || !session || session.completed_at || current?.status !== 'open') return;
-    const emit = async (kind: string) => {
+    if (data?.server_time) {
+      clockAnchor.current = {
+        server: Date.parse(data.server_time),
+        local: performance.now(),
+      };
+      setServerNow(clockAnchor.current.server);
+    }
+  }, [data?.server_time]);
+  useEffect(() => {
+    const id = setInterval(
+      () =>
+        setServerNow(clockAnchor.current.server + performance.now() - clockAnchor.current.local),
+      500,
+    );
+    return () => clearInterval(id);
+  }, []);
+  useEffect(() => {
+    if (!progression || !data || round === 4) return;
+    const next = data.active_round || 0;
+    if (data.online_entered && next !== round) setRound(next);
+  }, [progression, data?.active_round, data?.online_entered, round]);
+  useEffect(() => {
+    const key = String(round) + ':' + session?.ends_at;
+    if (
+      scheduled &&
+      round &&
+      session &&
+      !session.completed_at &&
+      serverNow >= Date.parse(session.ends_at) &&
+      expiredRefresh.current !== key
+    ) {
+      expiredRefresh.current = key;
+      void refresh();
+    }
+  }, [progression, round, session?.ends_at, session?.completed_at, serverNow, refresh]);
+  useEffect(() => {
+    if (!lease) return;
+    const flush = async () => {
+      if (flushingActivity.current) return;
+      flushingActivity.current = true;
       try {
-        const result = await rpc('bh_activity', {
+        while (activityQueue.current.length && navigator.onLine) {
+          const entry = activityQueue.current[0];
+          const result = await rpc('bh_activity', entry);
+          activityQueue.current.shift();
+          if (entry.p_kind === 'tab' && result.warning)
+            toast.warning(
+              `Tab switches recorded: ${result.tab_count}. Stay in the arena; organizers can review activity.`,
+            );
+        }
+      } catch {
+        /* Retry queued, idempotent telemetry while this page remains open. */
+      } finally {
+        flushingActivity.current = false;
+      }
+    };
+    const emit = (kind: string) => {
+      if (
+        !round ||
+        !session ||
+        session.completed_at ||
+        current?.status !== 'open' ||
+        clockAnchor.current.server + performance.now() - clockAnchor.current.local >=
+          Date.parse(session.ends_at)
+      )
+        return;
+      if (activityQueue.current.length < 200)
+        activityQueue.current.push({
           p_round: round,
           p_kind: kind,
           p_request: uuid(),
         });
-        if (kind === 'tab' && result.warning)
-          toast.warning(
-            `Tab switches recorded: ${result.tab_count}. Stay in the arena; organizers can review activity.`,
-          );
-      } catch {
-        /* The next state refresh reports connectivity; telemetry never discards an answer. */
+      void flush();
+    };
+    const retry = setInterval(() => void flush(), 10000);
+    window.addEventListener('online', flush);
+    // Blur and visibilitychange can describe the same Alt+Tab; record it once.
+    let away = false;
+    const leave = () => {
+      if (!away) {
+        away = true;
+        void emit('tab');
       }
     };
     const visibility = () => {
-      if (document.hidden) void emit('tab');
+      if (document.hidden) leave();
+      else if (document.hasFocus()) away = false;
+    };
+    const focus = () => {
+      if (!document.hidden) away = false;
     };
     const fullscreen = () => {
       if (!document.fullscreenElement) void emit('fullscreen');
     };
     const paste = () => void emit('paste');
+    window.addEventListener('blur', leave);
+    window.addEventListener('focus', focus);
     document.addEventListener('visibilitychange', visibility);
     document.addEventListener('fullscreenchange', fullscreen);
     document.addEventListener('paste', paste);
     return () => {
+      clearInterval(retry);
+      window.removeEventListener('online', flush);
+      window.removeEventListener('blur', leave);
+      window.removeEventListener('focus', focus);
       document.removeEventListener('visibilitychange', visibility);
       document.removeEventListener('fullscreenchange', fullscreen);
       document.removeEventListener('paste', paste);
@@ -182,7 +269,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
     session &&
     !session.completed_at &&
     current?.status === 'open' &&
-    Date.parse(session.ends_at) > Date.parse(data.server_time),
+    Date.parse(session.ends_at) > (serverNow || Date.parse(data.server_time)),
   );
   return (
     <>
@@ -215,6 +302,30 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
           </Chip>
         )}
       </div>
+      {scheduled && (
+        <section className="notice" aria-label="Online competition schedule">
+          <p>
+            Online Rounds 1-3 open together. Each team has up to 80 minutes from entry; Round 1 is
+            20 minutes, Round 2 is 30 minutes, and Round 3 is 30 minutes.
+          </p>
+          <p>
+            Starts: {eventTime(online.starts_at, online.timezone)} | Entry closes:{' '}
+            {eventTime(online.entry_closes_at, online.timezone)}
+          </p>
+          {data?.team_ends_at && (
+            <p>
+              Your competition deadline: {eventTime(data.team_ends_at, online.timezone)} | Focus
+              changes recorded: {data.tab_count || 0}
+            </p>
+          )}
+          {data?.team_ends_at && <Timer end={data.team_ends_at} serverTime={data?.server_time} />}
+          <p>Round 4 is a 40-minute on-site final on {online.onsite_date || '22 October 2026'}. Only teams with published final qualification can enter.</p>
+          <p>
+            Move forward whenever you are ready. Previous rounds lock permanently; timers continue
+            while offline.
+          </p>
+        </section>
+      )}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="tab-strip">
           <TabsTrigger value="arena">{round ? 'Round workspace' : 'Competition lobby'}</TabsTrigger>
@@ -228,22 +339,22 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                 <div className="stat">
                   <></>
                   <span>Competition format</span>
-                  <strong>4 rounds</strong>
+                  <strong>{scheduled ? '3 online rounds' : '4 rounds'}</strong>
                 </div>
                 <div className="stat">
                   <></>
                   <span>Total round time</span>
-                  <strong>120 min</strong>
+                  <strong>{scheduled ? '80 min per team' : '120 min'}</strong>
                 </div>
                 <div className="stat">
                   <></>
                   <span>Available points</span>
-                  <strong>1,100</strong>
+                  <strong>{scheduled ? '600 online' : '1,100'}</strong>
                 </div>
                 <div className="stat">
                   <></>
-                  <span>Critical-fix bonus</span>
-                  <strong>+30</strong>
+                  <span>{scheduled ? 'Progression' : 'Critical-fix bonus'}</span>
+                  <strong>{scheduled ? 'One way' : '+30'}</strong>
                 </div>
               </div>
               {boot.team.status !== 'approved' && (
@@ -261,39 +372,71 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                 </div>
               )}
               <div className="round-grid">
-                {rounds.map((r) => {
-                  const state = boot.rounds.find((x: any) => x.id === r.id);
-                  const qualified =
-                    r.id === 1 ||
-                    data?.qualifications?.some((q: any) => q.round_id === r.id && q.qualified);
-                  const available = boot.team.status === 'approved' && qualified;
-                  return (
-                    <article className={`round-card ${available ? 'available' : ''}`} key={r.id}>
-                      <span className="round-index">0{r.id}</span>
-                      <Chip tone={available ? 'green' : ''}>
-                        {qualified ? 'Eligible' : 'Locked'}
-                      </Chip>
-                      <h3>{r.name}</h3>
-                      <p>{r.description}</p>
-                      <div className="round-meta">
-                        {r.duration} MIN · {r.points} PTS · {r.count.toUpperCase()}
-                      </div>
-                      <button
-                        className={`btn ${available ? '' : 'secondary'}`}
-                        disabled={!available || busy}
-                        onClick={() => start(r.id)}
-                      >
-                        {available ? (
-                          'Enter round'
-                        ) : (
-                          <>
-                            <></> Qualification required
-                          </>
-                        )}
-                      </button>
-                    </article>
-                  );
-                })}
+                {rounds
+                  .filter(
+                    (r) =>
+                      !scheduled ||
+                      r.id <= 3 ||
+                      boot.rounds.find((x: any) => x.id === 4)?.status === 'open' || data?.qualifications?.some((q: any) => q.round_id === 4 && q.qualified),
+                  )
+                  .map((r) => {
+                    const state = boot.rounds.find((x: any) => x.id === r.id);
+                    const qualified =
+                      (progression && r.id <= 3) ||
+                      r.id === 1 ||
+                      data?.qualifications?.some((q: any) => q.round_id === r.id && q.qualified);
+                    const onlineRound = scheduled && r.id <= 3;
+                    const teamRound = progression && r.id <= 3;
+                    const entryAllowed =
+                      onlineRound &&
+                      serverNow >= Date.parse(online.starts_at) &&
+                      serverNow < Date.parse(online.entry_closes_at);
+                    const available =
+                      boot.team.status === 'approved' &&
+                      qualified &&
+                      (teamRound
+                        ? !data?.online_entered && r.id === 1 && (scheduled ? entryAllowed : state?.status === 'open')
+                        : state?.status === 'open');
+                    const label = onlineRound
+                      ? data?.online_entered
+                        ? 'Locked'
+                        : serverNow < Date.parse(online.starts_at)
+                          ? 'Scheduled'
+                          : !entryAllowed
+                            ? 'Entry closed'
+                            : r.id === 1
+                              ? 'Enter competition'
+                              : 'Complete earlier round'
+                      : teamRound
+                        ? data?.online_entered ? 'Locked' : r.id > 1 ? 'Complete earlier round' : available ? 'Enter competition' : 'Waiting for start'
+                        : available ? 'Enter round' : 'Qualification required';
+                    return (
+                      <article className={`round-card ${available ? 'available' : ''}`} key={r.id}>
+                        <span className="round-index">0{r.id}</span>
+                        <Chip tone={available ? 'green' : ''}>
+                          {onlineRound ? label : qualified ? 'Eligible' : 'Locked'}
+                        </Chip>
+                        <h3>{r.name}</h3>
+                        <p>{r.description}</p>
+                        <div className="round-meta">
+                          {r.duration} MIN · {r.points} PTS · {r.count.toUpperCase()}
+                        </div>
+                        <button
+                          className={`btn ${available ? '' : 'secondary'}`}
+                          disabled={!available || busy}
+                          onClick={() => start(r.id)}
+                        >
+                          {available ? (
+                            label
+                          ) : (
+                            <>
+                              <></> {label}
+                            </>
+                          )}
+                        </button>
+                      </article>
+                    );
+                  })}
               </div>
               <div className="lobby-bottom">
                 <section className="panel">
@@ -304,8 +447,9 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   </div>
                   <ol className="rules">
                     <li>
-                      Only start when the organizer opens your round. Your timer starts when you
-                      enter.
+                      {scheduled
+                        ? 'Enter during the scheduled 20-minute entry window. Your competition clock starts when you enter Round 1.'
+                        : progression ? 'Enter through Round 1 when the competition opens. Move forward whenever you are ready; earlier answers will lock.' : 'Only start when the organizer opens your round. Your timer starts when you enter.'}
                     </li>
                     <li>
                       Round 1 answers lock after one submission. Rounds 2 and 3 allow three
@@ -331,11 +475,11 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                 <button
                   className="btn secondary small"
                   onClick={() => {
-                    setRound(0);
+                    setRound(progression && round <= 3 ? round : 0);
                     refreshBoot();
                   }}
                 >
-                  <></> Back to lobby
+                  <></> {progression && round <= 3 ? 'Refresh competition state' : 'Back to lobby'}
                 </button>
                 <div className="actions">
                   <button
@@ -350,10 +494,13 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   </button>
                   <button
                     className="btn secondary small"
-                    disabled={!canEdit}
+                    disabled={busy || !session || Boolean(session.completed_at) || (round >= 3 && !canEdit)}
                     onClick={() => setFinish(true)}
                   >
-                    <></> Finish round
+                    <></>{' '}
+                    {progression && round < 3
+                      ? 'Move to next round'
+                      : 'Finish round'}
                   </button>
                 </div>
               </div>
@@ -440,7 +587,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
       </Tabs>
       <Confirm
         open={finish}
-        title="Finish this round?"
+        title={progression && round < 3 ? 'Lock this round and continue?' : 'Finish this round?'}
         text="Your submitted answers will count. Unsaved drafts will not be submitted, and finishing prevents further answers in this round."
         onCancel={() => setFinish(false)}
         onConfirm={endRound}

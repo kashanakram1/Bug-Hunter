@@ -20,6 +20,8 @@ for (const name of readdirSync(new URL('backend/supabase/migrations/', root))
     process.exit(1);
   }
 }
+// Historical/manual competition regression mode; scheduling has its own suite.
+await db.exec('update bughunt.event set online_enabled=false,self_progression=false where id');
 const content = JSON.parse(readFileSync(new URL('private/official-content.json', root), 'utf8'));
 for (const q of content.questions) {
   const { explanation, rubric, accepted, ...row } = q;
@@ -217,7 +219,7 @@ await check('Review cannot exceed rubric bounds or run twice', async () => {
   await query('select public.bh_grade($1,$2,$3)', [
     submission,
     JSON.stringify({ a: 5, b: 5 }),
-    'Equivalent answer accepted',
+    '',
   ]);
   await fails('select public.bh_grade($1,$2,$3)', [
     submission,
@@ -302,7 +304,7 @@ await check('Final claim verification and single global critical bonus', async (
   await as('b');
   const cb = await claim();
   await as('judge');
-  await query(`select public.bh_review_claim($1,'verified',3,null,'Confirmed fix')`, [ca]);
+  await query(`select public.bh_review_claim($1,'verified',3,null,'')`, [ca]);
   await query(`select public.bh_review_claim($1,'verified',3,null,'Confirmed fix')`, [cb]);
   assert.equal(await val('select count(*)::int from bughunt.first_blood'), 1);
   assert.equal(

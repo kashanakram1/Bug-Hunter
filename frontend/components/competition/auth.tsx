@@ -51,7 +51,7 @@ export function AuthScreen({
   return (
     <div className="auth-layout">
       <section className="intro">
-        <div className="eyebrow">CODE CONNECT 26 / BUG HUNT ADVANCED</div>
+        <div className="eyebrow">CODE CONNECT 26 / BUG HUNTER MODULE-5</div>
         <h1>
           ARE YOU READY
           <br />
@@ -61,6 +61,11 @@ export function AuthScreen({
           Think critically. Debug efficiently. Assemble your team for four increasingly challenging
           rounds of code review, security analysis, and system debugging.
         </p>
+        <div className="notice">
+          <p>Online: Saturday, 17 October 2026 at 4:00 PM Pakistan time. Entry closes at 4:20 PM.</p>
+          <p>Rounds 1?3: 20, 30, and 30 minutes. Each team gets up to 80 minutes from entry.</p>
+          <p>On-site final: Thursday, 22 October 2026. Round 4 lasts 40 minutes and is open only to qualified teams.</p>
+        </div>
         <div className="event-numbers">
           <div>
             <strong>04</strong>
@@ -68,7 +73,7 @@ export function AuthScreen({
           </div>
           <div>
             <strong>120</strong>
-            <span>minutes in the arena</span>
+            <span>80 online + 40 on-site</span>
           </div>
           <div>
             <strong>1,100</strong>
