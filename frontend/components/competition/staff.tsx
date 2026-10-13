@@ -353,18 +353,7 @@ export function StaffPortal({ role, online }: { role: string; online?: any }) {
                             >
                               Release sessions
                             </button>
-                            <button
-                              className="btn secondary small"
-                              onClick={() =>
-                                act(
-                                  'sessions',
-                                  { team_id: t.id, limit: t.session_limit === 1 ? 2 : 1 },
-                                  `Change session limit for ${t.name}`,
-                                )
-                              }
-                            >
-                              Allow {t.session_limit === 1 ? '2' : '1'} devices
-                            </button>
+                            <span className="muted">Up to 4 devices per team</span>
                           </div>
                           <TeamOverride team={t} act={act} online={online} />
                         </article>

@@ -257,8 +257,8 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
         <ErrorBox error={error} />
         {!error && <Loading />}
         <p className="muted">
-          One competition device is permitted per team unless an organizer grants an exception. A
-          disconnected session expires after two minutes.
+          Up to four devices can compete using the same team account. A disconnected device releases
+          its place after two minutes; signing out releases it immediately.
         </p>
       </section>
     );

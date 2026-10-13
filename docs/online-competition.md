@@ -51,3 +51,7 @@ Manual reason and review-note inputs are removed from organizer confirmations, r
 ## Flexible progression update
 
 Migration `202610130004_team_progression.sql` separates team progress from global round status in both scheduled competition and manual rehearsal mode. Teams advance in order when ready, locking earlier answers, without waiting for the previous round to close, resume, or run out of time. Administrators can open multiple rehearsal rounds independently. The final continues to require published qualification and its on-site date. Existing legacy suites explicitly select historical mode; scheduling/progression tests cover the new mode.
+
+## Four-device team access
+
+Every registered team automatically receives four active competition sessions using the same email/password. The server atomically admits sessions under a team row lock, refuses a fifth admission, and revokes a newly issued Auth session when login cannot reserve a slot. A device means an active authenticated browser session, not a hardware identifier. Signing out releases that session; a disconnected session expires after two minutes. Staff still may release stale sessions but cannot lower or raise the fixed four-device policy. The historical session_limit field remains for migration compatibility; device_limit is the authoritative fixed-four policy. All devices share one team timer and progression; submissions retain their transactional attempt/draft protections. Heartbeat budgets allow four members to connect and renew together.

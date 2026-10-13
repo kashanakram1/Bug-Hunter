@@ -138,6 +138,17 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
       if(action==='login') {
         try { value=normalizeSession(await upstream(s,'/auth/v1/token?grant_type=password','POST',{email:address,password:validatePassword(body.password)})); }
         catch(e){if(e instanceof ApiError&&e.status===400)throw new ApiError(400,'Email or password is incorrect, or your email is not confirmed.');throw e;}
+        try {
+          const boot=await upstream(s,'/rest/v1/rpc/bh_bootstrap','POST',{},value.access_token);
+          if(boot.role==='team'&&boot.team?.id){
+            const lease=await upstream(s,'/rest/v1/rpc/bh_heartbeat','POST',{},value.access_token);
+            if(!lease.allowed)throw new ApiError(409,lease.message||'All four team devices are active. Sign out on another device first.');
+          }
+        } catch(e) {
+          // Do not issue a cookie or retain a new provider session after a rejected admission.
+          try { await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token); } catch {}
+          throw e;
+        }
         cookie(headers,s,'session',value,86400);result={session:{user:await user(s,value)}};
       } else if(action==='signup'||action==='recover') {
         const verifier=randomBytes(32).toString('base64url');
@@ -150,7 +161,7 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
       } else if(action==='session') {
         result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery};
       } else if(action==='logout') {
-        if(value){try{await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token);}catch(e){if(!(e instanceof ApiError)||e.status>=500)throw e;}}
+        if(value){try{await upstream(s,'/rest/v1/rpc/bh_release_session','POST',{},value.access_token);}catch{} try{await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token);}catch(e){if(!(e instanceof ApiError)||e.status>=500)throw e;}}
         cookie(headers,s,'session',null,0);result={signedOut:true};
       } else if(action==='legacy-link') {
         // Older already-issued implicit-flow emails are supported once; never persist tokens in JS storage.

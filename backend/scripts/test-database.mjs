@@ -109,10 +109,23 @@ await check('Non-staff cannot access keys or admin actions', async () => {
   await fails(`select public.bh_staff_data('questions')`);
   await fails(`select public.bh_admin('pause_all','{}','test')`);
 });
-await check('One competition session per team', async () => {
+await check('Competition session must belong to its account', async () => {
   assert.equal((await val('select public.bh_heartbeat()')).allowed, true);
   await query(`select set_config('request.jwt.claim.session_id',$1,false)`, [sid(ids.b)]);
   await fails('select public.bh_heartbeat()');
+  await as('a');
+});
+await check('Four team devices admitted; fifth blocked; sign-out or expiry frees a slot', async () => {
+  const sessions=[sid(ids.a)];
+  for(let i=0;i<4;i++){const session=crypto.randomUUID();sessions.push(session);await query('insert into auth.sessions values($1,$2)',[session,ids.a]);}
+  for(const session of sessions.slice(0,4)){await query("select set_config('request.jwt.claim.session_id',$1,false)",[session]);assert.equal((await val('select public.bh_heartbeat()')).allowed,true);}
+  await query("select set_config('request.jwt.claim.session_id',$1,false)",[sessions[4]]);
+  assert.equal((await val('select public.bh_heartbeat()')).allowed,false);
+  await query("select set_config('request.jwt.claim.session_id',$1,false)",[sessions[1]]);await query('select public.bh_release_session()');
+  await query("select set_config('request.jwt.claim.session_id',$1,false)",[sessions[4]]);assert.equal((await val('select public.bh_heartbeat()')).allowed,true);
+  await query('update bughunt.login_leases set expires_at=now()-interval \'1 second\' where team_id=$1 and session_id=$2',[teamA,sessions[2]]);
+  await query("select set_config('request.jwt.claim.session_id',$1,false)",[sessions[1]]);assert.equal((await val('select public.bh_heartbeat()')).allowed,true);
+  await as('admin');await fails("select public.bh_admin('sessions',$1,'limit attempt')",[JSON.stringify({team_id:teamA,limit:5})],/overrides are disabled/);
   await as('a');
 });
 await check('Unapproved and future round access rejected', async () => {
