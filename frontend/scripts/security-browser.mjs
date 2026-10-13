@@ -4,13 +4,14 @@ const browser=await chromium.launch({channel:'chrome',headless:true});
 try{
  const ctx=await browser.newContext();const page=await ctx.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await ctx.routeWebSocket(/.*supabase.*realtime.*/,ws=>ws.close());
- let signedIn=false,verified=false;
+ let signedIn=false,verified=false,duplicateSignup=true;
  const payload='<img src=x onerror="window.__securityXss=1">';
  await ctx.addInitScript(()=>{localStorage.setItem('sb-obsolete-auth-token','isolated-old-token');window.__securityXss=0;});
  await ctx.route('**/api/**',async r=>{
   const p=new URL(r.request().url()).pathname;let data={};
   if(p==='/api/auth/session')data={session:signedIn?{user:{id:'isolated-staff',email:'staff@example.test'}}:null,recovery:false};
   else if(p==='/api/auth/login'){signedIn=true;data={session:{user:{id:'isolated-staff'}}};}
+  else if(p==='/api/auth/signup')data=duplicateSignup?{accepted:false,alreadyRegistered:true}:{accepted:true};
   else if(p==='/api/rpc/bh_bootstrap')data={role:'admin',team:null};
   else if(p==='/api/auth/mfa/status')data={verified,factors:[{id:'00000000-0000-4000-8000-000000000001'}]};
   else if(p==='/api/auth/mfa/verify'){verified=true;data={verified:true};}
@@ -26,6 +27,13 @@ try{
  await page.getByRole('heading',{name:'Enter the arena'}).waitFor();
  assert.equal(await page.getByLabel('Password',{exact:true}).getAttribute('minlength'),'6');
  assert.deepEqual(await page.evaluate(()=>Object.keys(localStorage).filter(k=>/^sb-.*-auth-token/.test(k))),[]);
+ await page.getByRole('button',{name:'New team? Create an account',exact:true}).click();
+ await page.getByLabel('Email',{exact:true}).fill('existing@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');
+ await page.getByRole('button',{name:'Create account',exact:true}).click();
+ await page.getByText('This email is already registered. Sign in, or use Forgot password to recover your account.',{exact:true}).waitFor();
+ duplicateSignup=false;await page.getByRole('button',{name:'Create account',exact:true}).click();
+ await page.getByText('Check your inbox for a confirmation link and open it in this browser, then sign in to register your team.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Already registered? Sign in',exact:true}).click();
  await page.getByRole('button',{name:'Mission Control',exact:true}).click();await page.getByText(payload,{exact:true}).waitFor();await page.getByText('<svg/onload=alert(1)>',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>window.__securityXss),0);assert.equal(await page.locator('.announcement img,.table-wrap svg[onload]').count(),0);
  await page.getByRole('button',{name:'Back to arena',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('staff@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');await page.getByRole('button',{name:'Sign in',exact:true}).click();

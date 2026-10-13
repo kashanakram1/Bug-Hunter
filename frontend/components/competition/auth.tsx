@@ -34,8 +34,10 @@ export function AuthScreen({
         await api('auth/login', { email, password });
         announceAuthChange();
       } else if (mode === 'signup') {
-        await api('auth/signup', { email, password });
-        setNotice('Request received. If this address needs confirmation, check your inbox for a link and open it in this browser. Already registered? Sign in or use Forgot password.');
+        const result = await api('auth/signup', { email, password });
+        setNotice(result.alreadyRegistered
+          ? 'This email is already registered. Sign in, or use Forgot password to recover your account.'
+          : 'Check your inbox for a confirmation link and open it in this browser, then sign in to register your team.');
       } else {
         await api('auth/recover', { email });
         setNotice(

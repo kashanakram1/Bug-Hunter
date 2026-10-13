@@ -155,14 +155,24 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
         const challenge=createHash('sha256').update(verifier).digest('base64url');
         const payload:any={email:address,code_challenge:challenge,code_challenge_method:'s256'};
         if(action==='signup')payload.password=validatePassword(body.password);
-        try { await upstream(s,`/auth/v1/${action==='signup'?'signup':'recover'}?redirect_to=${encodeURIComponent(s.origin+'/api/auth/callback')}`,'POST',payload); }
+        let alreadyRegistered=false;
+        try {
+          const response=await upstream(s,`/auth/v1/${action==='signup'?'signup':'recover'}?redirect_to=${encodeURIComponent(s.origin+'/api/auth/callback')}`,'POST',payload);
+          // Supabase can return HTTP 200 with an empty identity list for an existing account.
+          const signupUser=response?.user ?? response;
+          alreadyRegistered=action==='signup'&&Array.isArray(signupUser?.identities)&&signupUser.identities.length===0;
+        }
         catch(e){
           // Only normalize known account-existence responses. Invalid input, SMTP,
           // configuration errors and throttling must never look like a sent email.
           const hidden=e instanceof ApiError && e.status<500 && e.status!==429 && ((action==='signup'&&e.providerCode==='user_already_exists') || (action==='recover'&&e.providerCode==='user_not_found'));
           if(!hidden)throw e;
+          alreadyRegistered=action==='signup';
         }
-        cookie(headers,s,'flow',{verifier,recovery:action==='recover',expires:Date.now()+3600000},3600);result={accepted:true};
+        if(alreadyRegistered)result={accepted:false,alreadyRegistered:true};
+        else {
+          cookie(headers,s,'flow',{verifier,recovery:action==='recover',expires:Date.now()+3600000},3600);result={accepted:true};
+        }
       } else if(action==='session') {
         result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery};
       } else if(action==='logout') {

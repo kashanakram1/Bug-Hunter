@@ -76,8 +76,15 @@ try {
   }
   providerFailure=null;
  });
- await check('Existing-account responses remain neutral without revealing registration status',async()=>{
-  providerFailure={status:422,body:{error_code:'user_already_exists',msg:'Already registered'}};const r=await handleWebApi(request('auth/signup',{email:'a@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:true});providerFailure=null;
+ await check('Both provider duplicate-signup responses direct existing users to sign in without replacing an email verifier',async()=>{
+  for(const response of [{status:422,body:{error_code:'user_already_exists',msg:'Already registered'}},{status:200,body:{id:'sanitized-id',identities:[]}}]){
+   providerFailure=response;const r=await handleWebApi(request('auth/signup',{email:'a@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:false,alreadyRegistered:true});assert.equal(r.headers.get('set-cookie'),null);
+  }
+  providerFailure=null;
+ });
+ await check('New and unconfirmed signup identities retain confirmation flow',async()=>{
+  providerFailure={status:200,body:{id:'new-id',identities:[{provider:'email'}]}};
+  const r=await handleWebApi(request('auth/signup',{email:'new@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:true});assert.match(r.headers.get('set-cookie'),/HttpOnly/);providerFailure=null;
  });
  await check('Callback rejects missing browser-bound verifier',async()=>{const r=await handleWebApi(new Request(origin+'/api/auth/callback?code=foreign-code'),'auth/callback');assert.equal(r.status,400);});
  await check('Logout clears the cookie',async()=>{const r=await handleWebApi(request('auth/logout',{}, {Cookie:cookie}),'auth/logout');assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);});
