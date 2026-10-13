@@ -280,6 +280,12 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
         </div>
       )}
       <ErrorBox error={error} />
+      {round > 0 && (
+        <div className="round-clock-bar" aria-label={`Round ${round} timer`}>
+          <span className="round-clock-name">Round {round} · {current?.name || rounds[round - 1].name}</span>
+          <Timer end={session?.ends_at} serverTime={data?.server_time} pausedAt={current?.paused_at} />
+        </div>
+      )}
       <div className="page-heading">
         <div>
           <span className="eyebrow accent">TEAM WORKSPACE / {boot.team.name.toUpperCase()}</span>
@@ -290,13 +296,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
               : 'Your team, your rounds, your next challenge.'}
           </p>
         </div>
-        {round ? (
-          <Timer
-            end={session?.ends_at}
-            serverTime={data?.server_time}
-            pausedAt={current?.paused_at}
-          />
-        ) : (
+        {!round && (
           <Chip tone={boot.team.status === 'approved' ? 'green' : 'orange'}>
             {boot.team.status === 'approved' ? 'Approved to compete' : boot.team.status}
           </Chip>

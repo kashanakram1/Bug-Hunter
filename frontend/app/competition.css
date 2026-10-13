@@ -725,6 +725,50 @@ textarea.input {
   text-align: right;
   min-width: 170px;
 }
+.round-clock-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  background: var(--background);
+}
+.round-clock-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.round-clock-bar .timer {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+  min-width: 0;
+}
+.round-clock-bar .timer strong {
+  font-size: 1.8rem;
+}
+.round-clock-bar .timer small {
+  display: none;
+}
+@media (max-width: 480px) {
+  .round-clock-bar {
+    gap: 8px;
+    padding: 8px;
+  }
+  .round-clock-bar .timer {
+    gap: 6px;
+  }
+  .round-clock-bar .timer .eyebrow {
+    display: none;
+  }
+}
 .timer .eyebrow {
   font-size: 0.65rem;
   color: #c5c1bc;
