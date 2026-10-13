@@ -35,7 +35,7 @@ export function AuthScreen({
         announceAuthChange();
       } else if (mode === 'signup') {
         await api('auth/signup', { email, password });
-        setNotice('Check your email to confirm your account, then sign in to register your team.');
+        setNotice('Request received. If this address needs confirmation, check your inbox for a link and open it in this browser. Already registered? Sign in or use Forgot password.');
       } else {
         await api('auth/recover', { email });
         setNotice(
@@ -63,7 +63,7 @@ export function AuthScreen({
         </p>
         <div className="notice">
           <p>Online: Saturday, 17 October 2026 at 4:00 PM Pakistan time. Entry closes at 4:20 PM.</p>
-          <p>Rounds 1?3: 20, 30, and 30 minutes. Each team gets up to 80 minutes from entry.</p>
+          <p>Rounds 1, 2, and 3: 20, 30, and 30 minutes. Each team gets up to 80 minutes from entry.</p>
           <p>On-site final: Thursday, 22 October 2026. Round 4 lasts 40 minutes and is open only to qualified teams.</p>
         </div>
         <div className="event-numbers">

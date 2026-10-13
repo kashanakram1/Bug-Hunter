@@ -83,7 +83,7 @@ async function context() {
 async function login(ctx, identity) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('http://127.0.0.1:5173');
+  await page.goto((process.env.BUGHUNT_TEST_URL || 'http://127.0.0.1:5173'));
   await page.getByLabel('Email', { exact: true }).fill(identity.email);
   await page.getByLabel('Password', { exact: true }).fill('IsolatedTestPassword123!');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -222,7 +222,7 @@ assert.equal(Number(result.team.score), 160);
 const state = await call(user, 'bh_team_state', { p_round: 4 });
 assert.ok(state.certificates.length >= 3);
 const certificate = await teamContext.newPage();
-await certificate.goto('http://127.0.0.1:5173/?certificate=' + state.certificates[0].id);
+await certificate.goto((process.env.BUGHUNT_TEST_URL || 'http://127.0.0.1:5173') + '/?certificate=' + state.certificates[0].id);
 await certificate.getByText('VERIFIED CERTIFICATE', { exact: true }).waitFor();
 await certificate.getByRole('button', { name: 'Print / Save PDF' }).waitFor();
 console.log(

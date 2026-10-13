@@ -4,7 +4,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto('http://127.0.0.1:5173', { waitUntil: 'networkidle' });
+await page.goto((process.env.BUGHUNT_TEST_URL || 'http://127.0.0.1:5173'), { waitUntil: 'networkidle' });
 await page.getByRole('heading', { name: 'Enter the arena' }).waitFor();
 await page.getByRole('button', { name: 'New team? Create an account' }).click();
 await page.getByRole('heading', { name: 'Create your account' }).waitFor();

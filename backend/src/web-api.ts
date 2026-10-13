@@ -5,7 +5,7 @@ import { isIP } from 'node:net';
 type Session = { access_token: string; refresh_token: string; expires_at: number; recovery?: boolean };
 type Settings = { url: string; key: string; secret: string; origin: string; ip: string };
 class ApiError extends Error {
-  constructor(public status: number, message: string, public retryAfter?: number) { super(message); }
+  constructor(public status: number, message: string, public retryAfter?: number, public providerCode?: string) { super(message); }
 }
 const publicRpc = new Set(['bh_public_state', 'bh_verify_certificate']);
 const rpcNames = new Set(['bh_bootstrap','bh_register','bh_heartbeat','bh_release_session','bh_start_round','bh_team_state','bh_save_draft','bh_submit','bh_finish_round','bh_claim','bh_activity','bh_ask','bh_staff_data','bh_grade','bh_review_claim','bh_admin','bh_my_results', ...publicRpc]);
@@ -57,7 +57,7 @@ async function upstream(s: Settings, path: string, method: string, body?: unknow
     if (limited) throw new ApiError(429, 'Too many requests. Please wait and try again.', 60);
     const message = data?.message || data?.msg || data?.error_description;
     // Auth diagnostics are normalized below; database messages are part of the event UX.
-    throw new ApiError(r.status >= 500 ? 503 : r.status, typeof message === 'string' ? message.slice(0,400) : 'Request could not be completed.');
+    throw new ApiError(r.status >= 500 ? 503 : r.status, typeof message === 'string' ? message.slice(0,400) : 'Request could not be completed.',undefined,data?.error_code || data?.code);
   }
   return data;
 }
@@ -156,7 +156,12 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
         const payload:any={email:address,code_challenge:challenge,code_challenge_method:'s256'};
         if(action==='signup')payload.password=validatePassword(body.password);
         try { await upstream(s,`/auth/v1/${action==='signup'?'signup':'recover'}?redirect_to=${encodeURIComponent(s.origin+'/api/auth/callback')}`,'POST',payload); }
-        catch(e){if(!(e instanceof ApiError)||e.status>=500||e.status===429)throw e;/* Identical response avoids account enumeration. */}
+        catch(e){
+          // Only normalize known account-existence responses. Invalid input, SMTP,
+          // configuration errors and throttling must never look like a sent email.
+          const hidden=e instanceof ApiError && e.status<500 && e.status!==429 && ((action==='signup'&&e.providerCode==='user_already_exists') || (action==='recover'&&e.providerCode==='user_not_found'));
+          if(!hidden)throw e;
+        }
         cookie(headers,s,'flow',{verifier,recovery:action==='recover',expires:Date.now()+3600000},3600);result={accepted:true};
       } else if(action==='session') {
         result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery};
