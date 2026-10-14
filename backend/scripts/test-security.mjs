@@ -46,12 +46,14 @@ const originalFetch=globalThis.fetch;
 const previous={...process.env};
 Object.assign(process.env,{SUPABASE_URL:'https://isolated.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_isolated',SUPABASE_SECRET_KEY:'sb_secret_isolated_test_only',VERCEL:'1'});
 const token='test.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,aal:'aal1'})).toString('base64url')+'.test';
-let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200;
+let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200,verificationFailure=false;
 globalThis.fetch=async(url,options)=>{calls.push({url:String(url),body:options?.body,headers:options?.headers});if(failed)throw Error('isolated transport outage');let data={};
  if(providerFailure && /\/auth\/v1\/(signup|recover)/.test(String(url)))return new Response(JSON.stringify(providerFailure.body),{status:providerFailure.status,headers:{'Content-Type':'application/json',...providerFailure.headers}});
  if(String(url).includes('grant_type=refresh_token')&&refreshStatus!==200)return new Response(JSON.stringify({msg:'Temporary refresh failure'}),{status:refreshStatus,headers:{'Retry-After':'37'}});
+ if(String(url).endsWith('/auth/v1/verify')&&verificationFailure)return new Response(JSON.stringify({error_code:'otp_expired',msg:'Token expired'}),{status:403});
  if(String(url).endsWith('bh_gateway_budget'))data={allowed,retry_after:600};
  else if(String(url).includes('/auth/v1/token'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:sessionSeconds};
+ else if(String(url).endsWith('/auth/v1/verify'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:3600};
  else if(String(url).endsWith('/auth/v1/user'))data={id:uid,email:'staff@example.test',factors:[]};
  else if(String(url).endsWith('/challenge'))data={id:'challenge'};
  else if(String(url).endsWith('/verify'))data={access_token:'test.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,aal:'aal2',sub:uid})).toString('base64url')+'.test',refresh_token:'isolated-mfa-refresh',expires_in:3600};
@@ -77,7 +79,7 @@ try {
  await check('Protected RPC forwards only the server-held user token',async()=>{const r=await handleWebApi(request('rpc/bh_bootstrap',{}, {Cookie:cookie}),'rpc/bh_bootstrap');assert.equal(r.status,200);assert.equal((await r.json()).safe,true);});
  await check('Account and IP quotas run before failed login and return Retry-After',async()=>{allowed=false;const before=calls.length;const r=await handleWebApi(request('auth/login',{email:'staff@example.test',password:'123456'}),'auth/login');assert.equal(r.status,429);assert.equal(r.headers.get('retry-after'),'600');assert.equal(calls.length,before+1);assert.ok(!calls.at(-1).body.includes('staff@example.test')&&!calls.at(-1).body.includes('192.0.2.1'));allowed=true;});
  await check('Limiter outage fails closed and does not disclose secrets',async()=>{failed=true;const r=await handleWebApi(request('auth/login',{email:'staff@example.test',password:'123456'}),'auth/login');assert.equal(r.status,503);assert.ok(!(await r.text()).includes(process.env.SUPABASE_SECRET_KEY));failed=false;});
- await check('PKCE email request sets HttpOnly verifier and callback URL',async()=>{const r=await handleWebApi(request('auth/recover',{email:'staff@example.test'}),'auth/recover');assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/HttpOnly/);const body=JSON.parse(calls.at(-1).body);assert.equal(body.code_challenge_method,'s256');assert.ok(calls.at(-1).url.includes('redirect_to='));assert.ok(!(await r.text()).includes('verifier'));});
+ await check('Email-code request is browser-independent and sets no verifier or auth cookie',async()=>{const r=await handleWebApi(request('auth/recover',{email:'staff@example.test'}),'auth/recover');assert.equal(r.status,200);assert.equal(r.headers.get('set-cookie'),null);assert.deepEqual(JSON.parse(calls.at(-1).body),{email:'staff@example.test'});assert.deepEqual(await r.json(),{accepted:true});});
  await check('Signup and recovery never mask validation, configuration, SMTP, or rate errors as success',async()=>{
   for(const path of ['signup','recover'])for(const failure of [{status:422,body:{error_code:'email_address_invalid',msg:'Email address is invalid'}},{status:401,body:{error_code:'bad_jwt',msg:'Invalid API configuration'}},{status:500,body:{error_code:'unexpected_failure',msg:'Error sending confirmation email'}},{status:429,body:{error_code:'over_email_send_rate_limit',msg:'Email limit exceeded'}}]){
    providerFailure=failure;const r=await handleWebApi(request('auth/'+path,{email:'a@example.test',password:'123456'}),'auth/'+path);assert.equal(r.status,failure.status===500?503:failure.status);assert.equal(r.headers.get('set-cookie'),null);
@@ -90,9 +92,30 @@ try {
   }
   providerFailure=null;
  });
- await check('New and unconfirmed signup identities retain confirmation flow',async()=>{
+ await check('New and unconfirmed signup identities request confirmation without a browser cookie',async()=>{
   providerFailure={status:200,body:{id:'new-id',identities:[{provider:'email'}]}};
-  const r=await handleWebApi(request('auth/signup',{email:'new@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:true});assert.match(r.headers.get('set-cookie'),/HttpOnly/);providerFailure=null;
+  const r=await handleWebApi(request('auth/signup',{email:'new@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:true});assert.equal(r.headers.get('set-cookie'),null);providerFailure=null;
+ });
+ await check('Confirmation code can be verified in a fresh browser; session secrets stay server-side',async()=>{
+  const r=await handleWebApi(request('auth/verify-email',{email:'new@example.test',code:'12345678',type:'signup'}),'auth/verify-email');assert.equal(r.status,200);assert.deepEqual(await r.json(),{verified:true,recovery:false});assert.match(r.headers.get('set-cookie'),/HttpOnly/);assert.ok(!r.headers.get('set-cookie').includes(token));
+  assert.deepEqual(JSON.parse(calls.findLast(c=>c.url.endsWith('/auth/v1/verify')).body),{email:'new@example.test',token:'12345678',type:'signup'});
+ });
+ await check('Malformed, wrong-type and expired/reused email codes cannot create sessions',async()=>{
+  for(const body of [{code:'123456',type:'signup'},{code:'12345678',type:'magiclink'}]){const n=calls.length;assert.equal((await handleWebApi(request('auth/verify-email',{email:'new@example.test',...body}),'auth/verify-email')).status,400);assert.equal(calls.length,n);}
+  verificationFailure=true;const r=await handleWebApi(request('auth/verify-email',{email:'new@example.test',code:'12345678',type:'signup'}),'auth/verify-email');assert.equal(r.status,400);assert.match((await r.json()).message,/incorrect, expired, or already used/);assert.equal(r.headers.get('set-cookie'),null);verificationFailure=false;
+ });
+ await check('Resending signup code does not require or change the password',async()=>{
+  const r=await handleWebApi(request('auth/resend',{email:'new@example.test'}),'auth/resend');assert.equal(r.status,200);assert.ok(calls.at(-1).url.endsWith('/auth/v1/resend'));assert.deepEqual(JSON.parse(calls.at(-1).body),{email:'new@example.test',type:'signup'});assert.equal(r.headers.get('set-cookie'),null);
+ });
+ await check('Code verification cannot bypass the four-device limit',async()=>{
+  teamLogin=true;deviceAllowed=false;const r=await handleWebApi(request('auth/verify-email',{email:'team@example.test',code:'12345678',type:'signup'}),'auth/verify-email');assert.equal(r.status,409);assert.equal(r.headers.get('set-cookie'),null);assert.ok(calls.at(-1).url.includes('/auth/v1/logout'));teamLogin=false;deviceAllowed=true;
+ });
+ await check('Recovery code permits only password reset, then clears session for normal sign-in',async()=>{
+  const r=await handleWebApi(request('auth/verify-email',{email:'staff@example.test',code:'12345678',type:'recovery'}),'auth/verify-email');assert.equal(r.status,200);assert.equal((await r.json()).recovery,true);const stored=r.headers.get('set-cookie').split(';')[0];
+  const state=await handleWebApi(request('auth/session',{}, {Cookie:stored}),'auth/session');assert.equal((await state.json()).recovery,true);
+  assert.equal((await handleWebApi(request('rpc/bh_bootstrap',{}, {Cookie:stored}),'rpc/bh_bootstrap')).status,403);
+  assert.equal((await handleWebApi(request('auth/mfa/status',{}, {Cookie:stored}),'auth/mfa/status')).status,403);
+  const done=await handleWebApi(request('auth/password',{password:'new-password'}, {Cookie:stored}),'auth/password');assert.equal(done.status,200);assert.match(done.headers.get('set-cookie'),/Max-Age=0/);
  });
  await check('Provider email throttling retains Retry-After and actionable email guidance',async()=>{
   providerFailure={status:429,body:{error_code:'over_email_send_rate_limit'},headers:{'Retry-After':'127'}};
@@ -103,7 +126,7 @@ try {
   for(const status of [429,503]){refreshStatus=status;const r=await handleWebApi(request('auth/session',{}, {Cookie:stored}),'auth/session');assert.equal(r.status,status);assert.equal(r.headers.get('set-cookie'),null);}
   refreshStatus=401;const r=await handleWebApi(request('auth/session',{}, {Cookie:stored}),'auth/session');assert.equal(r.status,200);assert.equal((await r.json()).session,null);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);refreshStatus=200;
  });
- await check('Callback rejects missing browser-bound verifier',async()=>{const r=await handleWebApi(new Request(origin+'/api/auth/callback?code=foreign-code'),'auth/callback');assert.equal(r.status,400);});
+ await check('Old callback failure redirects to helpful app UI without raw JSON or leaking the code',async()=>{const r=await handleWebApi(new Request(origin+'/api/auth/callback?code=foreign-code'),'auth/callback');assert.equal(r.status,303);assert.equal(r.headers.get('location'),origin+'/?auth=link-error');assert.equal(await r.text(),'');});
  await check('Logout clears the cookie',async()=>{const r=await handleWebApi(request('auth/logout',{}, {Cookie:cookie}),'auth/logout');assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);});
 } finally {globalThis.fetch=originalFetch;for(const k of Object.keys(process.env))if(!(k in previous))delete process.env[k];Object.assign(process.env,previous);}
 console.log(`${checks} security hardening checks passed.`);

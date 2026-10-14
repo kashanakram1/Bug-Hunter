@@ -59,7 +59,7 @@ async function upstream(s: Settings, path: string, method: string, body?: unknow
       const code=data?.error_code || data?.code;
       const emailLimited=code==='over_email_send_rate_limit';
       throw new ApiError(429,emailLimited
-        ? 'The email service is temporarily limiting confirmation and recovery emails. Check your inbox and spam for an earlier link, or try again after the waiting period.'
+        ? 'The email service is temporarily limiting confirmation and recovery emails. Check your inbox and spam for the latest code. You can still enter a code you already have, or try again after the waiting period.'
         : 'Too many requests. Please wait before trying again.',Number.isFinite(wait)&&wait>0?Math.ceil(wait):60,code);
     }
     const message = data?.message || data?.msg || data?.error_description;
@@ -75,14 +75,26 @@ async function budget(s: Settings, request: Request, kind: string, account = '')
   const result = await upstream(s, '/rest/v1/rpc/bh_gateway_budget', 'POST', { p_kind: kind, p_ip: hash('ip:'+ip), p_account: account ? hash('account:'+account.trim().toLowerCase()) : null }, undefined, true);
   if (!result.allowed) throw new ApiError(429,
     result.limit_scope==='account'&&kind==='signup'
-      ? 'Several signup requests were made for this email. Check your inbox and spam for the confirmation link. You can request another after the waiting period, or sign in if already confirmed.'
+      ? 'Several confirmation requests were made for this email. Check your inbox and spam for the latest code. You can still enter a code you already have, or sign in if already confirmed.'
       : result.limit_scope==='account'&&kind==='recover'
-        ? 'Several recovery requests were made for this email. Check your inbox and spam for the latest reset link, or wait before requesting another.'
+        ? 'Several recovery requests were made for this email. Check your inbox and spam for the latest reset code. You can still enter a code you already have.'
         : 'Too many requests. Please wait before trying again.',result.retry_after);
 }
 function normalizeSession(data: any, recovery = false): Session {
   if (!data?.access_token || !data?.refresh_token) throw new ApiError(401, 'Please sign in again.');
   return { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: data.expires_at || Math.floor(Date.now()/1000) + data.expires_in, recovery };
+}
+async function admit(s: Settings, value: Session) {
+  try {
+    const boot=await upstream(s,'/rest/v1/rpc/bh_bootstrap','POST',{},value.access_token);
+    if(boot.role==='team'&&boot.team?.id){
+      const lease=await upstream(s,'/rest/v1/rpc/bh_heartbeat','POST',{},value.access_token);
+      if(!lease.allowed)throw new ApiError(409,lease.message||'All four team devices are active. Sign out on another device first.');
+    }
+  } catch(e) {
+    try { await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token); } catch {}
+    throw e;
+  }
 }
 async function session(request: Request, s: Settings, headers: Headers) {
   let value = unseal<Session>(readCookie(request,cookieName(s)),s);
@@ -121,9 +133,10 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
     if (request.method === 'GET' && path === 'auth/callback') {
       const flow=unseal<{verifier:string;recovery:boolean;expires:number}>(readCookie(request,cookieName(s,'flow')),s);
       const code=new URL(request.url).searchParams.get('code');
-      if(!flow||flow.expires<Date.now()||!code||code.length>2000)throw new ApiError(400,'This email link is expired or belongs to a different browser. Request a new link in this browser.');
+      if(!flow||flow.expires<Date.now()||!code||code.length>2000)throw new ApiError(400,'This older email link cannot be completed. Request an email code instead.');
       await budget(s,request,'callback');
       const value=normalizeSession(await upstream(s,'/auth/v1/token?grant_type=pkce','POST',{auth_code:code,code_verifier:flow.verifier}),flow.recovery);
+      if(!value.recovery)await admit(s,value);
       cookie(headers,s,'session',value,86400);cookie(headers,s,'flow',null,0);
       headers.set('Location',s.origin+'/'); return new Response(null,{status:303,headers});
     }
@@ -136,40 +149,38 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
       await budget(s,request,'rpc');
       const value=publicRpc.has(name)?null:await session(request,s,headers);
       if(!publicRpc.has(name)&&!value)throw new ApiError(401,'Sign in required.');
+      if(value?.recovery&&!publicRpc.has(name))throw new ApiError(403,'Finish resetting your password, then sign in to the competition.');
       result=await upstream(s,'/rest/v1/rpc/'+name,'POST',body,value?.access_token,publicRpc.has(name));
     } else if(path.startsWith('auth/')) {
       const action=path.slice(5);
-      const address=['login','signup','recover'].includes(action)?email(body.email):'';
+      const anonymous=['login','signup','recover','resend','verify-email'].includes(action);
+      const address=anonymous?email(body.email):'';
+      if(action==='verify-email'&&(!['signup','recovery'].includes(body.type)||typeof body.code!=='string'||!/^\d{8}$/.test(body.code)))throw new ApiError(400,'Enter the eight-digit code from your email.');
       if(action==='mfa/verify') {
         const stored=unseal<Session>(readCookie(request,cookieName(s)),s);
         let subject='unauthenticated';
         try { subject=JSON.parse(Buffer.from(stored!.access_token.split('.')[1],'base64url').toString()).sub || subject; } catch {}
         await budget(s,request,'mfa',subject);
-      } else await budget(s,request,['login','signup','recover'].includes(action)?action:'session',address);
-      let value = ['login','signup','recover'].includes(action)?null:await session(request,s,headers);
+      } else await budget(s,request,action==='verify-email'?'email_verify':action==='resend'?'signup':['login','signup','recover'].includes(action)?action:'session',address);
+      let value = anonymous?null:await session(request,s,headers);
+      if(value?.recovery&&!['session','password','logout'].includes(action))throw new ApiError(403,'Finish resetting your password first.');
       if(action==='login') {
         try { value=normalizeSession(await upstream(s,'/auth/v1/token?grant_type=password','POST',{email:address,password:validatePassword(body.password)})); }
         catch(e){if(e instanceof ApiError&&e.status===400)throw new ApiError(400,'Email or password is incorrect, or your email is not confirmed.');throw e;}
-        try {
-          const boot=await upstream(s,'/rest/v1/rpc/bh_bootstrap','POST',{},value.access_token);
-          if(boot.role==='team'&&boot.team?.id){
-            const lease=await upstream(s,'/rest/v1/rpc/bh_heartbeat','POST',{},value.access_token);
-            if(!lease.allowed)throw new ApiError(409,lease.message||'All four team devices are active. Sign out on another device first.');
-          }
-        } catch(e) {
-          // Do not issue a cookie or retain a new provider session after a rejected admission.
-          try { await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token); } catch {}
-          throw e;
-        }
+        await admit(s,value);
         cookie(headers,s,'session',value,86400);result={session:{user:await user(s,value)}};
-      } else if(action==='signup'||action==='recover') {
-        const verifier=randomBytes(32).toString('base64url');
-        const challenge=createHash('sha256').update(verifier).digest('base64url');
-        const payload:any={email:address,code_challenge:challenge,code_challenge_method:'s256'};
+      } else if(action==='verify-email') {
+        try { value=normalizeSession(await upstream(s,'/auth/v1/verify','POST',{email:address,token:body.code,type:body.type}),body.type==='recovery'); }
+        catch(e){if(e instanceof ApiError&&[400,403,422].includes(e.status))throw new ApiError(400,'The code is incorrect, expired, or already used. Check the email address and use the latest code, or request another.');throw e;}
+        if(!value.recovery)await admit(s,value);
+        cookie(headers,s,'session',value,86400);result={verified:true,recovery:!!value.recovery};
+      } else if(action==='signup'||action==='recover'||action==='resend') {
+        const payload:any={email:address};
         if(action==='signup')payload.password=validatePassword(body.password);
+        if(action==='resend')payload.type='signup';
         let alreadyRegistered=false;
         try {
-          const response=await upstream(s,`/auth/v1/${action==='signup'?'signup':'recover'}?redirect_to=${encodeURIComponent(s.origin+'/api/auth/callback')}`,'POST',payload);
+          const response=await upstream(s,`/auth/v1/${action==='signup'?'signup':action==='resend'?'resend':'recover'}`,'POST',payload);
           // Supabase can return HTTP 200 with an empty identity list for an existing account.
           const signupUser=response?.user ?? response;
           alreadyRegistered=action==='signup'&&Array.isArray(signupUser?.identities)&&signupUser.identities.length===0;
@@ -182,9 +193,7 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
           alreadyRegistered=action==='signup';
         }
         if(alreadyRegistered)result={accepted:false,alreadyRegistered:true};
-        else {
-          cookie(headers,s,'flow',{verifier,recovery:action==='recover',expires:Date.now()+3600000},3600);result={accepted:true};
-        }
+        else result={accepted:true};
       } else if(action==='session') {
         result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery};
       } else if(action==='logout') {
@@ -197,12 +206,17 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
         if(!u.id)throw new ApiError(401,'Invalid email link.');
         const payload=JSON.parse(Buffer.from(body.access_token.split('.')[1],'base64url').toString());
         value={access_token:body.access_token,refresh_token:body.refresh_token,expires_at:payload.exp,recovery:body.type==='recovery'};
+        if(!value.recovery)await admit(s,value);
         cookie(headers,s,'session',value,86400);result={session:{user:{id:u.id,email:u.email}},recovery:value.recovery};
       } else {
         if(!value)throw new ApiError(401,'Sign in required.');
         if(action==='password') {
           await upstream(s,'/auth/v1/user','PUT',{password:validatePassword(body.password)},value.access_token);
-          value.recovery=false;cookie(headers,s,'session',value,86400);result={updated:true};
+          if(value.recovery){
+            try { await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token); } catch {}
+            cookie(headers,s,'session',null,0);
+          } else {cookie(headers,s,'session',value,86400);}
+          result={updated:true};
         } else if(action==='mfa/status') {
           const u=await upstream(s,'/auth/v1/user','GET',undefined,value.access_token);
           const claims=JSON.parse(Buffer.from(value.access_token.split('.')[1],'base64url').toString());
@@ -226,6 +240,10 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
     return new Response(JSON.stringify(result??null),{status:200,headers});
   } catch(e) {
     const error=e instanceof ApiError?e:new ApiError(503,'Connection interrupted. Please try again.');
+    if(request.method==='GET'&&path==='auth/callback'&&s){
+      headers.set('Location',s.origin+'/?auth=link-error');
+      return new Response(null,{status:303,headers});
+    }
     if(error.retryAfter)headers.set('Retry-After',String(Math.max(1,error.retryAfter)));
     // Tokens, credentials, request bodies, and provider responses are never logged.
     return new Response(JSON.stringify({message:error.message}),{status:error.status,headers});

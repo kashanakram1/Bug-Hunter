@@ -62,11 +62,11 @@ export default function Home() {
     };
   }, []);
   useEffect(() => {
-    if (session) {
+    if (session && !recovery) {
       setLoading(true);
       void refresh();
     } else setBoot(null);
-  }, [session?.user?.id]);
+  }, [session?.user?.id, recovery]);
   async function signout() {
     try {
       if (boot?.team) await rpc('bh_release_session');

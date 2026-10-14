@@ -4,7 +4,7 @@ export class ApiRequestError extends Error {
   constructor(message: string, public status: number, public retryAfter = 0) { super(message); }
 }
 export async function api<T = any>(path: string, body: unknown = {}): Promise<T> {
-  const response = await fetch('/api/'+path, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-BugHunt-Request':'1'}, body:JSON.stringify(body), signal:AbortSignal.timeout(15000), cache:'no-store' });
+  const response = await fetch('/api/'+path, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-BugHunt-Request':'1'}, body:JSON.stringify(body), signal:AbortSignal.timeout(path.startsWith('auth/')?60000:30000), cache:'no-store' });
   const data = await response.json().catch(()=>null);
   if(!response.ok){
     const wait=Number(response.headers.get('retry-after'));

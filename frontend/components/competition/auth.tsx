@@ -18,16 +18,45 @@ export function AuthScreen({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [address, setAddress] = useState('');
+  const [step, setStep] = useState<'request' | 'code'>('request');
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [now, setNow] = useState(Date.now());
   const submitting = useRef(false);
-  const scope = `${recovery ? 'password' : mode}:${address.trim().toLowerCase()}`;
+  const scope = `${recovery ? 'password' : step === 'code' ? 'verify' : mode}:${address.trim().toLowerCase()}`;
+  const sendScope = `${mode}:${address.trim().toLowerCase()}`;
   const remaining = Math.max(0, Math.ceil(((cooldowns[scope] || 0) - now) / 1000));
+  const resendRemaining = Math.max(0, Math.ceil(((cooldowns[sendScope] || 0) - now) / 1000));
   useEffect(() => {
-    if (!remaining) return;
+    if (!remaining && !resendRemaining) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [remaining > 0]);
+  }, [remaining > 0 || resendRemaining > 0]);
+  useEffect(() => {
+    const auth = new URLSearchParams(location.search).get('auth');
+    if (auth === 'confirm' || auth === 'recovery') {
+      setMode(auth === 'confirm' ? 'signup' : 'reset');
+      setStep('code');
+    } else if (auth === 'link-error') {
+      setMode('reset');
+      setError('This older email link could not be completed. Request a new email code below. You can enter the code in any browser.');
+    }
+    if (auth) history.replaceState(null, '', location.pathname + location.hash);
+  }, []);
+  function changeMode(next: 'login' | 'signup' | 'reset') {
+    setMode(next);setStep('request');setError('');setNotice('');
+  }
+  async function resend() {
+    if (submitting.current || (cooldowns[sendScope] || 0) > Date.now()) return;
+    submitting.current = true;setBusy(true);setError('');
+    try {
+      await api(mode === 'signup' ? 'auth/resend' : 'auth/recover', {email: address});
+      setNotice('Request accepted. Check your inbox and spam for the latest eight-digit code. Delivery can take a few minutes.');
+      setNow(Date.now());setCooldowns(current => ({...current, [sendScope]: Date.now()+60000}));
+    } catch(e) {
+      setError(message(e));
+      if(e instanceof ApiRequestError && e.status===429){setNow(Date.now());setCooldowns(current=>({...current,[sendScope]:Date.now()+e.retryAfter*1000}));}
+    } finally {submitting.current=false;setBusy(false);}
+  }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!supabase || submitting.current || (cooldowns[scope] || 0) > Date.now()) return;
@@ -41,7 +70,13 @@ export function AuthScreen({
     try {
       if (recovery) {
         await api('auth/password', { password });
+        setNotice('Password updated. Sign in with your new password.');
+        setStep('request');setMode('login');
+        announceAuthChange();
         onRecovered();
+      } else if (step === 'code') {
+        await api('auth/verify-email', {email,code:String(f.get('code') || '').trim(),type:mode==='signup'?'signup':'recovery'});
+        announceAuthChange();
       } else if (mode === 'login') {
         await api('auth/login', { email, password });
         announceAuthChange();
@@ -49,16 +84,18 @@ export function AuthScreen({
         const result = await api('auth/signup', { email, password });
         setNotice(result.alreadyRegistered
           ? 'This email is already registered. Sign in, or use Forgot password to recover your account.'
-          : 'Check your inbox for a confirmation link and open it in this browser, then sign in to register your team.');
+          : 'Request accepted. Check your inbox and spam for an eight-digit confirmation code. Delivery can take a few minutes.');
         if (!result.alreadyRegistered) {
+          setStep('code');
           setNow(Date.now());
           setCooldowns(current => ({...current, [scope]: Date.now() + 60000}));
         }
       } else {
         await api('auth/recover', { email });
         setNotice(
-          'If an account exists for this address, you will receive a password reset email.',
+          'If this address has an account, a reset code has been requested. Check your inbox and spam, then enter the latest eight-digit code.',
         );
+        setStep('code');
         setNow(Date.now());
         setCooldowns(current => ({...current, [scope]: Date.now() + 60000}));
       }
@@ -125,6 +162,8 @@ export function AuthScreen({
         <h2>
           {recovery
             ? 'Choose a new password'
+            : step === 'code'
+              ? mode === 'signup' ? 'Confirm your email' : 'Enter your reset code'
             : mode === 'login'
               ? 'Enter the arena'
               : mode === 'signup'
@@ -132,10 +171,12 @@ export function AuthScreen({
                 : 'Reset your password'}
         </h2>
         <p className="muted">
-          {mode === 'signup'
+          {recovery ? 'Your email is verified. Choose your new password.' : step === 'code'
+            ? 'Enter the eight-digit code from your email. It expires after 10 minutes and can be used once.'
+            : mode === 'signup'
             ? 'Start with your team leader’s email.'
             : mode === 'reset'
-              ? 'We’ll send a secure recovery link.'
+              ? 'Request an email code to reset your password.'
               : 'Sign in to your team or staff account.'}
         </p>
         <form onSubmit={submit}>
@@ -144,6 +185,7 @@ export function AuthScreen({
               Email
               <input
                 name="email"
+                value={address}
                 onChange={e => setAddress(e.target.value)}
                 type="email"
                 autoComplete="email"
@@ -153,7 +195,13 @@ export function AuthScreen({
               />
             </label>
           )}
-          {(recovery || mode !== 'reset') && (
+          {!recovery && step === 'code' && (
+            <label className="field">
+              Email code
+              <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{8}" minLength={8} maxLength={8} placeholder="Eight-digit code" required />
+            </label>
+          )}
+          {(recovery || (step === 'request' && mode !== 'reset')) && (
             <label className="field">
               Password
               <input
@@ -183,25 +231,32 @@ export function AuthScreen({
                 ? `Try again in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
               : recovery
                 ? 'Update password'
+                : step === 'code'
+                  ? 'Verify code'
                 : mode === 'login'
                   ? 'Sign in'
                   : mode === 'signup'
                     ? 'Create account'
-                    : 'Send recovery link'}
+                    : 'Send reset code'}
           </button>
         </form>
         {!recovery && (
           <div className="auth-links">
+            {step === 'code' && (
+              <button disabled={busy || !address || resendRemaining > 0} onClick={resend}>
+                {resendRemaining > 0 ? `Resend code in ${Math.floor(resendRemaining / 60)}:${String(resendRemaining % 60).padStart(2, '0')}` : 'Resend code'}
+              </button>
+            )}
+            {step === 'request' && mode !== 'login' && (
+              <button disabled={busy} onClick={() => {setStep('code');setError('');setNotice('Enter the email address and latest code you received.');}}>I already have a code</button>
+            )}
             <button
-              onClick={() => {
-                setMode(mode === 'signup' ? 'login' : 'signup');
-                setError('');
-                setNotice('');
-              }}
+              disabled={busy}
+              onClick={() => changeMode(mode === 'signup' ? 'login' : 'signup')}
             >
               {mode === 'signup' ? 'Already registered? Sign in' : 'New team? Create an account'}
             </button>
-            <button onClick={() => setMode(mode === 'reset' ? 'login' : 'reset')}>
+            <button disabled={busy} onClick={() => changeMode(mode === 'reset' ? 'login' : 'reset')}>
               {mode === 'reset' ? 'Back to sign in' : 'Forgot password?'}
             </button>
           </div>
