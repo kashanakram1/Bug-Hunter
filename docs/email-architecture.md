@@ -34,6 +34,8 @@ The old PKCE callback required a verifier stored in the browser that requested t
 
 New requests create no PKCE flow cookie and no authentication session before code verification. Email buttons contain only a public app URL and the intended screen; they do not consume a code. Email scanners can follow those links without verifying anything. Users can enter email and code in any browser through “I already have a code.” Existing PKCE callbacks remain supported with the original cookie; failed callbacks redirect to helpful app UI without exposing their code.
 
+Forgot password shows email, a Send reset code button and the code field immediately, including after returning to the site. Sending uses a separate button so an empty code field never blocks the request. The sign-in screen also provides Enter confirmation code. Direct entry URLs are `/?auth=recovery` and `/?auth=confirm`.
+
 ## API and controls
 
 | Endpoint | Purpose |
@@ -49,6 +51,9 @@ New requests create no PKCE flow cookie and no authentication session before cod
 - The browser guards concurrent submissions, scopes cooldowns by email and operation, and honors Retry-After. A 60-second resend cooldown starts after a successful request; provider and server limits remain authoritative across devices/reloads.
 - Project mail remains limited to the requested 50/hour. Mail requests are described as accepted, not delivered. No automatic retry sends duplicate emails.
 - Normal sessions retain device admission, CSRF checks, encrypted HttpOnly cookies and server-side tokens. Recovery sessions cannot call private competition RPCs or other protected account actions.
+- The application uses email-code recovery without mandatory authenticator MFA, as requested. Legacy app-created staff factors must be retired at the provider; removing their UI alone leaves Supabase enforcing AAL2 on password updates. New TOTP enrollment is disabled in provider settings and the gateway. No privileged password-update bypass is used.
+
+The one remaining legacy “Bug Hunt staff” factor was retired with explicit organizer approval on 15 October 2026 Pakistan time. Provider verification showed zero remaining owner factors and new TOTP enrollment disabled. The cleanup did not change the password or competition records.
 - Provider requests have individual timeouts. The browser allows longer bounded auth requests to avoid abandoning a multi-step request before the server's own timeouts.
 
 ## Provider configuration and rollout

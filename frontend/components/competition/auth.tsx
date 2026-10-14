@@ -38,12 +38,13 @@ export function AuthScreen({
       setStep('code');
     } else if (auth === 'link-error') {
       setMode('reset');
+      setStep('code');
       setError('This older email link could not be completed. Request a new email code below. You can enter the code in any browser.');
     }
     if (auth) history.replaceState(null, '', location.pathname + location.hash);
   }, []);
   function changeMode(next: 'login' | 'signup' | 'reset') {
-    setMode(next);setStep('request');setError('');setNotice('');
+    setMode(next);setStep(next === 'reset' ? 'code' : 'request');setError('');setNotice('');
   }
   async function resend() {
     if (submitting.current || (cooldowns[sendScope] || 0) > Date.now()) return;
@@ -172,7 +173,9 @@ export function AuthScreen({
         </h2>
         <p className="muted">
           {recovery ? 'Your email is verified. Choose your new password.' : step === 'code'
-            ? 'Enter the eight-digit code from your email. It expires after 10 minutes and can be used once.'
+            ? mode === 'reset'
+              ? 'Request a reset code below, or enter one you already received. Codes have eight digits and expire after 10 minutes.'
+              : 'Enter the eight-digit code from your email. It expires after 10 minutes and can be used once.'
             : mode === 'signup'
             ? 'Start with your team leader’s email.'
             : mode === 'reset'
@@ -196,10 +199,17 @@ export function AuthScreen({
             </label>
           )}
           {!recovery && step === 'code' && (
-            <label className="field">
-              Email code
-              <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{8}" minLength={8} maxLength={8} placeholder="Eight-digit code" required />
-            </label>
+            <>
+              {mode === 'reset' && (
+                <button type="button" className="btn secondary full" disabled={busy || !configured || !address || resendRemaining > 0} onClick={resend}>
+                  {resendRemaining > 0 ? `Resend code in ${Math.floor(resendRemaining / 60)}:${String(resendRemaining % 60).padStart(2, '0')}` : cooldowns[sendScope] ? 'Resend code' : 'Send reset code'}
+                </button>
+              )}
+              <label className="field">
+                Email code
+                <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{8}" minLength={8} maxLength={8} placeholder="Enter your eight-digit email code" required />
+              </label>
+            </>
           )}
           {(recovery || (step === 'request' && mode !== 'reset')) && (
             <label className="field">
@@ -242,7 +252,7 @@ export function AuthScreen({
         </form>
         {!recovery && (
           <div className="auth-links">
-            {step === 'code' && (
+            {step === 'code' && mode !== 'reset' && (
               <button disabled={busy || !address || resendRemaining > 0} onClick={resend}>
                 {resendRemaining > 0 ? `Resend code in ${Math.floor(resendRemaining / 60)}:${String(resendRemaining % 60).padStart(2, '0')}` : 'Resend code'}
               </button>
@@ -259,6 +269,9 @@ export function AuthScreen({
             <button disabled={busy} onClick={() => changeMode(mode === 'reset' ? 'login' : 'reset')}>
               {mode === 'reset' ? 'Back to sign in' : 'Forgot password?'}
             </button>
+            {mode === 'login' && (
+              <button disabled={busy} onClick={() => {changeMode('signup');setStep('code');}}>Enter confirmation code</button>
+            )}
           </div>
         )}
         <div className="auth-footer">

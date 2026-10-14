@@ -34,12 +34,16 @@ try{
  const b=await client();await b.page.goto(origin+'/?auth=confirm');await b.page.getByRole('heading',{name:'Confirm your email',exact:true}).waitFor();
  await b.page.getByLabel('Email',{exact:true}).fill('new@example.test');await b.page.getByLabel('Email code',{exact:true}).fill('12345678');await b.page.getByRole('button',{name:'Verify code',exact:true}).click();await b.page.getByRole('heading',{name:'Build your crew.',exact:true}).waitFor();
  assert.equal(b.requests.some(r=>r.path==='/api/auth/signup'),false);
- const c=await client();await c.page.goto(origin);await c.page.getByRole('button',{name:'Forgot password?',exact:true}).click();await c.page.getByLabel('Email',{exact:true}).fill('recover@example.test');await c.page.getByRole('button',{name:'Send reset code',exact:true}).click();await c.page.getByRole('heading',{name:'Enter your reset code',exact:true}).waitFor();
+ const c=await client();await c.page.goto(origin);await c.page.getByRole('button',{name:'Forgot password?',exact:true}).click();
+ await c.page.getByLabel('Email code',{exact:true}).waitFor();assert.equal(c.requests.some(r=>r.path==='/api/auth/recover'),false);
+ await c.page.getByLabel('Email',{exact:true}).fill('recover@example.test');await c.page.getByRole('button',{name:'Send reset code',exact:true}).click();await c.page.getByText(/Request accepted. Check your inbox and spam for the latest eight-digit code/).waitFor();
+ assert.equal(await c.page.getByRole('button',{name:'Verify code',exact:true}).isEnabled(),true);
  await c.page.getByLabel('Email code',{exact:true}).fill('12345678');await c.page.getByRole('button',{name:'Verify code',exact:true}).click();await c.page.getByRole('heading',{name:'Choose a new password',exact:true}).waitFor();
  assert.equal(c.requests.some(r=>r.path==='/api/rpc/bh_bootstrap'),false);
  await c.page.getByLabel('Password',{exact:true}).fill('updated-password');await c.page.getByRole('button',{name:'Update password',exact:true}).click();await c.page.getByRole('heading',{name:'Enter the arena',exact:true}).waitFor();
  await c.page.getByLabel('Email',{exact:true}).fill('recover@example.test');await c.page.getByLabel('Password',{exact:true}).fill('updated-password');await c.page.getByRole('button',{name:'Sign in',exact:true}).click();await c.page.getByRole('heading',{name:'Build your crew.',exact:true}).waitFor();
- const d=await client();await d.page.goto(origin+'/?auth=link-error');await d.page.getByText(/This older email link could not be completed/).waitFor();assert.equal(await d.page.getByRole('button',{name:'I already have a code',exact:true}).count(),1);
- await d.page.getByRole('button',{name:'I already have a code',exact:true}).click();await d.page.getByRole('heading',{name:'Enter your reset code',exact:true}).waitFor();
+ const d=await client();await d.page.goto(origin+'/?auth=link-error');await d.page.getByText(/This older email link could not be completed/).waitFor();await d.page.getByLabel('Email code',{exact:true}).waitFor();
+ await d.page.goto(origin+'/?auth=recovery');await d.page.getByLabel('Email code',{exact:true}).waitFor();assert.equal(d.requests.some(r=>r.path==='/api/auth/recover'),false);
+ await d.page.goto(origin);await d.page.getByRole('button',{name:'Enter confirmation code',exact:true}).click();await d.page.getByRole('heading',{name:'Confirm your email',exact:true}).waitFor();await d.page.getByLabel('Email code',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);console.log('PASS cross-browser confirmation, wrong-code feedback, independent resend/verify, recovery-only UI, password update and normal sign-in, old-link help, no page exceptions.');
 }finally{await browser.close();}

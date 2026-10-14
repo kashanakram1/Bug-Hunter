@@ -222,12 +222,7 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
           const claims=JSON.parse(Buffer.from(value.access_token.split('.')[1],'base64url').toString());
           result={verified:claims.aal==='aal2',factors:(u.factors||[]).filter((f:any)=>f.status==='verified'&&f.factor_type==='totp').map((f:any)=>({id:f.id,friendly_name:f.friendly_name}))};
         } else if(action==='mfa/enroll') {
-          const u=await upstream(s,'/auth/v1/user','GET',undefined,value.access_token);
-          if((u.factors||[]).some((f:any)=>f.status==='verified'))throw new ApiError(400,'Use your existing authenticator.');
-          // A interrupted enrollment can be restarted without accumulating unverified factors.
-          for(const f of (u.factors||[]).filter((f:any)=>f.status==='unverified'))await upstream(s,'/auth/v1/factors/'+encodeURIComponent(f.id),'DELETE',undefined,value.access_token);
-          const f=await upstream(s,'/auth/v1/factors','POST',{factor_type:'totp',friendly_name:'Bug Hunt staff'},value.access_token);
-          result={id:f.id,uri:f.totp.uri,secret:f.totp.secret};
+          throw new ApiError(403,'Authenticator enrollment is disabled. Use email-code confirmation or recovery.');
         } else if(action==='mfa/verify') {
           if(typeof body.factorId!=='string'||! /^[0-9a-f-]{36}$/i.test(body.factorId)||typeof body.code!=='string'||!/^\d{6}$/.test(body.code))throw new ApiError(400,'Enter the six-digit authenticator code.');
           const f='/auth/v1/factors/'+body.factorId;
