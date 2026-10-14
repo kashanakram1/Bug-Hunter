@@ -33,7 +33,9 @@ export function AuthScreen({
   }, [remaining > 0 || resendRemaining > 0]);
   useEffect(() => {
     const auth = new URLSearchParams(location.search).get('auth');
-    if (auth === 'confirm' || auth === 'recovery') {
+    if (auth === 'signup') {
+      setMode('signup');setStep('request');
+    } else if (auth === 'confirm' || auth === 'recovery') {
       setMode(auth === 'confirm' ? 'signup' : 'reset');
       setStep('code');
     } else if (auth === 'link-error') {
@@ -174,10 +176,10 @@ export function AuthScreen({
         <p className="muted">
           {recovery ? 'Your email is verified. Choose your new password.' : step === 'code'
             ? mode === 'reset'
-              ? 'Request a reset code below, or enter one you already received. Codes have eight digits and expire after 10 minutes.'
+              ? 'Request a reset code below, or enter one you already received. New users must create an account first. Codes have eight digits and expire after 10 minutes.'
               : 'Enter the eight-digit code from your email. It expires after 10 minutes and can be used once.'
             : mode === 'signup'
-            ? 'Start with your team leader’s email.'
+            ? 'Create your login with your email. Team registration or approved organizer access follows email verification.'
             : mode === 'reset'
               ? 'Request an email code to reset your password.'
               : 'Sign in to your team or staff account.'}
@@ -264,7 +266,7 @@ export function AuthScreen({
               disabled={busy}
               onClick={() => changeMode(mode === 'signup' ? 'login' : 'signup')}
             >
-              {mode === 'signup' ? 'Already registered? Sign in' : 'New team? Create an account'}
+              {mode === 'signup' ? 'Already registered? Sign in' : 'New here? Create an account'}
             </button>
             <button disabled={busy} onClick={() => changeMode(mode === 'reset' ? 'login' : 'reset')}>
               {mode === 'reset' ? 'Back to sign in' : 'Forgot password?'}

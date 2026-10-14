@@ -26,7 +26,7 @@ async function client(){
 }
 try{
  const a=await client();await a.page.goto(origin);
- await a.page.getByRole('button',{name:'New team? Create an account',exact:true}).click();
+ await a.page.getByRole('button',{name:'New here? Create an account',exact:true}).click();
  await a.page.getByLabel('Email',{exact:true}).fill('new@example.test');await a.page.getByLabel('Password',{exact:true}).fill('123456');await a.page.getByRole('button',{name:'Create account',exact:true}).click();
  await a.page.getByRole('heading',{name:'Confirm your email',exact:true}).waitFor();
  assert.equal(await a.page.getByRole('button',{name:/Resend code in/}).isDisabled(),true);
@@ -49,6 +49,7 @@ try{
  c.setSessionUnavailable(false);const held=c.holdNextSession();await c.page.evaluate(()=>window.dispatchEvent(new Event('bughunt-auth-change')));await held.ready;c.removeSession();await c.page.evaluate(()=>window.dispatchEvent(new Event('bughunt-auth-change')));held.release();await c.page.getByRole('heading',{name:'Enter the arena',exact:true}).waitFor();
  const d=await client();await d.page.goto(origin+'/?auth=link-error');await d.page.getByText(/This older email link could not be completed/).waitFor();await d.page.getByLabel('Email code',{exact:true}).waitFor();
  await d.page.goto(origin+'/?auth=recovery');await d.page.getByLabel('Email code',{exact:true}).waitFor();assert.equal(d.requests.some(r=>r.path==='/api/auth/recover'),false);
+ await d.page.goto(origin+'/?auth=signup');await d.page.getByRole('heading',{name:'Create your account',exact:true}).waitFor();assert.equal(await d.page.getByLabel('Password',{exact:true}).count(),1);
  await d.page.goto(origin);await d.page.getByRole('button',{name:'Enter confirmation code',exact:true}).click();await d.page.getByRole('heading',{name:'Confirm your email',exact:true}).waitFor();await d.page.getByLabel('Email code',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);console.log('PASS cross-browser confirmation, recovery/reset/sign-in, old-link help, foreground session revocation, outage resilience, concurrent auth changes, no page exceptions.');
 }finally{await browser.close();}

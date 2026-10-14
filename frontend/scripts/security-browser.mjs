@@ -31,7 +31,7 @@ try{
  await page.getByRole('heading',{name:'Enter the arena'}).waitFor();
  assert.equal(await page.getByLabel('Password',{exact:true}).getAttribute('minlength'),'6');
  assert.deepEqual(await page.evaluate(()=>Object.keys(localStorage).filter(k=>/^sb-.*-auth-token/.test(k))),[]);
- await page.getByRole('button',{name:'New team? Create an account',exact:true}).click();
+ await page.getByRole('button',{name:'New here? Create an account',exact:true}).click();
  await page.getByLabel('Email',{exact:true}).fill('existing@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');
  await page.getByRole('button',{name:'Create account',exact:true}).click();
  await page.getByText('This email is already registered. Sign in, or use Forgot password to recover your account.',{exact:true}).waitFor();
@@ -40,7 +40,7 @@ try{
  assert.equal(await page.getByRole('button',{name:/Resend code in/}).isDisabled(),true);
  assert.equal(await page.getByRole('button',{name:'Verify code',exact:true}).isEnabled(),true);
  const sent=signupCalls;await page.locator('form').evaluate(form=>form.requestSubmit());await page.waitForTimeout(150);assert.equal(signupCalls,sent);
- await page.getByRole('button',{name:'Already registered? Sign in',exact:true}).click();await page.getByRole('button',{name:'New team? Create an account',exact:true}).click();
+ await page.getByRole('button',{name:'Already registered? Sign in',exact:true}).click();await page.getByRole('button',{name:'New here? Create an account',exact:true}).click();
  signupLimited=true;await page.getByLabel('Email',{exact:true}).fill('limited@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');await page.getByRole('button',{name:'Create account',exact:true}).click();
  await page.getByText('Check your inbox and spam for the confirmation link.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:/Try again in [12]:/}).isDisabled(),true);
