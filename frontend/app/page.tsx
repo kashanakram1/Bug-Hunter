@@ -46,19 +46,33 @@ export default function Home() {
       return () => window.removeEventListener('hashchange', syncView);
     }
     let alive = true;
-    const loadSession = () => currentSession().then((data) => {
-      if (alive) {
+    let checking = false;
+    let authChangePending = false;
+    const loadSession = (silent = false) => {
+      if (checking) return;
+      checking = true;
+      return currentSession().then((data) => {
+      if (alive && !authChangePending) {
         setSession(data.session);
         setRecovery(data.recovery);
         setLoading(false);
       }
-    }).catch((e) => { if(alive){setError(message(e));setLoading(false);} });
+      }).catch((e) => { if(alive && !silent){setError(message(e));setLoading(false);} })
+        .finally(() => {
+          checking = false;
+          if (alive && authChangePending) { authChangePending = false; void loadSession(); }
+        });
+    };
+    const authChanged = () => { if(checking) authChangePending = true; else void loadSession(); };
+    const checkOnFocus = () => { void loadSession(true); };
     void loadSession();
-    window.addEventListener('bughunt-auth-change', loadSession);
+    window.addEventListener('bughunt-auth-change', authChanged);
+    window.addEventListener('focus', checkOnFocus);
     return () => {
       alive = false;
       window.removeEventListener('hashchange', syncView);
-      window.removeEventListener('bughunt-auth-change', loadSession);
+      window.removeEventListener('bughunt-auth-change', authChanged);
+      window.removeEventListener('focus', checkOnFocus);
     };
   }, []);
   useEffect(() => {

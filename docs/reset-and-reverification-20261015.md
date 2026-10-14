@@ -39,5 +39,6 @@ Before deletion, a private custom PostgreSQL archive of the auth/application/pub
 - Fresh isolated PostgreSQL fixtures passed team workflow, saved drafts, submissions, clarification, mobile workspace, organizer approval/grading/announcement, final claims, results and certificate verification.
 - Local concurrency: 500 independent authenticated test teams, 2,500 requests, zero unexpected errors. A 20-request duplicate-submission race accepted one and rejected 19.
 - Production build and TypeScript passed. Tests used isolated fixtures so the live reset remains clean.
+- Foreground session checks return deleted accounts to sign-in when an old tab regains focus; temporary provider lookup failures leave the current workspace in place.
 
 The load measurement is local PostgreSQL performance; it does not establish hosted Supabase plan capacity. SMTP acceptance/configuration and prior recipient receipt do not guarantee future inbox delivery or eliminate provider quotas/outages.
