@@ -46,11 +46,12 @@ const originalFetch=globalThis.fetch;
 const previous={...process.env};
 Object.assign(process.env,{SUPABASE_URL:'https://isolated.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_isolated',SUPABASE_SECRET_KEY:'sb_secret_isolated_test_only',VERCEL:'1'});
 const token='test.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,aal:'aal1'})).toString('base64url')+'.test';
-let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200,verificationFailure=false;
+let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200,verificationFailure=false,userStatus=200;
 globalThis.fetch=async(url,options)=>{calls.push({url:String(url),body:options?.body,headers:options?.headers});if(failed)throw Error('isolated transport outage');let data={};
  if(providerFailure && /\/auth\/v1\/(signup|recover)/.test(String(url)))return new Response(JSON.stringify(providerFailure.body),{status:providerFailure.status,headers:{'Content-Type':'application/json',...providerFailure.headers}});
  if(String(url).includes('grant_type=refresh_token')&&refreshStatus!==200)return new Response(JSON.stringify({msg:'Temporary refresh failure'}),{status:refreshStatus,headers:{'Retry-After':'37'}});
  if(String(url).endsWith('/auth/v1/verify')&&verificationFailure)return new Response(JSON.stringify({error_code:'otp_expired',msg:'Token expired'}),{status:403});
+ if(String(url).endsWith('/auth/v1/user')&&options?.method==='GET'&&userStatus!==200)return new Response(JSON.stringify({msg:'User lookup failed'}),{status:userStatus});
  if(String(url).endsWith('bh_gateway_budget'))data={allowed,retry_after:600};
  else if(String(url).includes('/auth/v1/token'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:sessionSeconds};
  else if(String(url).endsWith('/auth/v1/verify'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:3600};
@@ -73,6 +74,11 @@ try {
  await check('Login creates encrypted HttpOnly Secure SameSite cookie without exposing tokens',async()=>{assert.match(set,/__Host-bh-session=/);for(const attr of ['HttpOnly','Secure','SameSite=Lax','Path=/'])assert.ok(set.includes(attr));assert.ok(!set.includes(token)&&!set.includes('isolated-refresh'));const body=await login.text();assert.ok(!body.includes('access_token')&&!body.includes('refresh_token'));assert.match(login.headers.get('cache-control'),/no-store/);});
  await check('Team login reserves a device; fifth login is rejected without a cookie and its provider session is revoked',async()=>{teamLogin=true;deviceAllowed=true;assert.equal((await handleWebApi(request('auth/login',{email:'team@example.test',password:'123456'}),'auth/login')).status,200);deviceAllowed=false;const r=await handleWebApi(request('auth/login',{email:'team@example.test',password:'123456'}),'auth/login');assert.equal(r.status,409);assert.equal(r.headers.get('set-cookie'),null);assert.ok(calls.at(-1).url.includes('/auth/v1/logout'));teamLogin=false;deviceAllowed=true;});
  await check('Session survives reload without returning browser-readable credentials',async()=>{const r=await handleWebApi(request('auth/session',{}, {Cookie:cookie}),'auth/session');assert.equal(r.status,200);const data=await r.json();assert.equal(data.session.user.id,uid);assert.equal(data.session.access_token,undefined);});
+ await check('Deleted-account sessions are cleared; provider outages and throttling preserve valid cookies',async()=>{
+  for(const status of [401,403,404]){userStatus=status;const r=await handleWebApi(request('auth/session',{}, {Cookie:cookie}),'auth/session');assert.equal(r.status,200);assert.deepEqual(await r.json(),{session:null,recovery:false});assert.match(r.headers.get('set-cookie'),/Max-Age=0/);}
+  for(const status of [429,503]){userStatus=status;const r=await handleWebApi(request('auth/session',{}, {Cookie:cookie}),'auth/session');assert.equal(r.status,status);assert.equal(r.headers.get('set-cookie'),null);}
+  userStatus=200;
+ });
  await check('Authenticator verification upgrades only the HttpOnly session',async()=>{const r=await handleWebApi(request('auth/mfa/verify',{factorId:uid,code:'123456'},{Cookie:cookie}),'auth/mfa/verify');assert.equal(r.status,200);assert.deepEqual(await r.json(),{verified:true});const elevated=r.headers.get('set-cookie').split(';')[0];const status=await handleWebApi(request('auth/mfa/status',{}, {Cookie:elevated}),'auth/mfa/status');assert.equal((await status.json()).verified,true);});
  await check('Disabled authenticator enrollment cannot create another legacy factor',async()=>{const before=calls.length;const r=await handleWebApi(request('auth/mfa/enroll',{}, {Cookie:cookie}),'auth/mfa/enroll');assert.equal(r.status,403);assert.ok(calls.slice(before).every(c=>!c.url.endsWith('/auth/v1/factors')));});
  await check('Only trusted Vercel client IP is forwarded to provider Auth',async()=>{assert.ok(calls.filter(c=>c.url.includes('/auth/v1/')).every(c=>c.headers['Sb-Forwarded-For']==='192.0.2.1'&&c.headers.apikey==='sb_secret_isolated_test_only'));});

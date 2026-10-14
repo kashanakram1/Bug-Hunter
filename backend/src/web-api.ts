@@ -195,7 +195,12 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
         if(alreadyRegistered)result={accepted:false,alreadyRegistered:true};
         else result={accepted:true};
       } else if(action==='session') {
-        result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery};
+        try { result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery}; }
+        catch(e){
+          // An account removed by an approved operator reset must not retain a stale browser session.
+          if(!(e instanceof ApiError)||![401,403,404].includes(e.status))throw e;
+          cookie(headers,s,'session',null,0);result={session:null,recovery:false};
+        }
       } else if(action==='logout') {
         if(value){try{await upstream(s,'/rest/v1/rpc/bh_release_session','POST',{},value.access_token);}catch{} try{await upstream(s,'/auth/v1/logout?scope=local','POST',{},value.access_token);}catch(e){if(!(e instanceof ApiError)||e.status>=500)throw e;}}
         cookie(headers,s,'session',null,0);result={signedOut:true};

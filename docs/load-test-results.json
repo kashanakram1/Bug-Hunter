@@ -1,10 +1,10 @@
 {
-  "date": "2026-10-13T02:42:02.039Z",
+  "date": "2026-10-14T20:38:46.255Z",
   "environment": "Isolated local PostgreSQL 17, 50 pooled connections, 500 independently authenticated teams; no network or Supabase hosting included",
   "teams": 500,
   "successful_requests": 2500,
   "unexpected_errors": 0,
-  "duration_seconds": 16,
+  "duration_seconds": 14,
   "same_team_race": {
     "simultaneous_requests": 20,
     "accepted": 1,
@@ -13,38 +13,38 @@
   "metrics": {
     "bh_heartbeat": {
       "requests": 500,
-      "p50_ms": 938,
-      "p95_ms": 2099,
-      "p99_ms": 2107,
-      "max_ms": 2109
+      "p50_ms": 1275,
+      "p95_ms": 2006,
+      "p99_ms": 2034,
+      "max_ms": 2034
     },
     "bh_start_round": {
       "requests": 500,
-      "p50_ms": 1899,
-      "p95_ms": 3404,
-      "p99_ms": 3413,
-      "max_ms": 3415
+      "p50_ms": 1155,
+      "p95_ms": 1692,
+      "p99_ms": 1705,
+      "max_ms": 1706
     },
     "bh_save_draft": {
       "requests": 500,
-      "p50_ms": 1172,
-      "p95_ms": 2211,
-      "p99_ms": 2219,
-      "max_ms": 2220
+      "p50_ms": 747,
+      "p95_ms": 1160,
+      "p99_ms": 1163,
+      "max_ms": 1167
     },
     "bh_submit": {
       "requests": 500,
-      "p50_ms": 1358,
-      "p95_ms": 2202,
-      "p99_ms": 2519,
-      "max_ms": 2583
+      "p50_ms": 772,
+      "p95_ms": 2135,
+      "p99_ms": 2677,
+      "max_ms": 2740
     },
     "bh_team_state": {
       "requests": 500,
-      "p50_ms": 1275,
-      "p95_ms": 2007,
-      "p99_ms": 2020,
-      "max_ms": 2021
+      "p50_ms": 750,
+      "p95_ms": 1298,
+      "p99_ms": 1330,
+      "max_ms": 1331
     }
   },
   "notes": "Burst timings include waiting for the 50-connection pool. This is a local database measurement, not a claim about Supabase plan capacity. Run the hosted rehearsal before opening the event."
