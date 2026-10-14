@@ -1,10 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { supabase, configured, message, rpc, rounds } from '@/lib/supabase';
 import { ErrorBox } from './common';
 import { Walkthrough } from './information';
-import { api, announceAuthChange } from '@/lib/auth';
+import { api, ApiRequestError, announceAuthChange } from '@/lib/auth';
 
 export function AuthScreen({
   recovery,
@@ -17,9 +17,21 @@ export function AuthScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [address, setAddress] = useState('');
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+  const [now, setNow] = useState(Date.now());
+  const submitting = useRef(false);
+  const scope = `${recovery ? 'password' : mode}:${address.trim().toLowerCase()}`;
+  const remaining = Math.max(0, Math.ceil(((cooldowns[scope] || 0) - now) / 1000));
+  useEffect(() => {
+    if (!remaining) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [remaining > 0]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabase || submitting.current || (cooldowns[scope] || 0) > Date.now()) return;
+    submitting.current = true;
     setBusy(true);
     setError('');
     setNotice('');
@@ -38,15 +50,26 @@ export function AuthScreen({
         setNotice(result.alreadyRegistered
           ? 'This email is already registered. Sign in, or use Forgot password to recover your account.'
           : 'Check your inbox for a confirmation link and open it in this browser, then sign in to register your team.');
+        if (!result.alreadyRegistered) {
+          setNow(Date.now());
+          setCooldowns(current => ({...current, [scope]: Date.now() + 60000}));
+        }
       } else {
         await api('auth/recover', { email });
         setNotice(
           'If an account exists for this address, you will receive a password reset email.',
         );
+        setNow(Date.now());
+        setCooldowns(current => ({...current, [scope]: Date.now() + 60000}));
       }
     } catch (e) {
       setError(message(e));
+      if (e instanceof ApiRequestError && e.status === 429) {
+        setNow(Date.now());
+        setCooldowns(current => ({...current, [scope]: Date.now() + e.retryAfter * 1000}));
+      }
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -121,6 +144,7 @@ export function AuthScreen({
               Email
               <input
                 name="email"
+                onChange={e => setAddress(e.target.value)}
                 type="email"
                 autoComplete="email"
                 placeholder="leader@university.edu"
@@ -152,9 +176,11 @@ export function AuthScreen({
           {!configured && (
             <ErrorBox error="The organizer is connecting the competition backend. Sign-in will be available once setup is complete." />
           )}
-          <button className="btn full" disabled={busy || !configured}>
+          <button className="btn full" disabled={busy || !configured || remaining > 0}>
             {busy
               ? 'Please wait…'
+              : remaining > 0
+                ? `Try again in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
               : recovery
                 ? 'Update password'
                 : mode === 'login'

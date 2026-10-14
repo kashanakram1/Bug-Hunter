@@ -54,7 +54,14 @@ async function upstream(s: Settings, path: string, method: string, body?: unknow
   const data = await r.json().catch(()=>null);
   if (!r.ok) {
     const limited = r.status === 429 || data?.code === 'P0001' && data?.message?.startsWith('Rate limit');
-    if (limited) throw new ApiError(429, 'Too many requests. Please wait and try again.', 60);
+    if (limited) {
+      const wait=Number(r.headers.get('retry-after'));
+      const code=data?.error_code || data?.code;
+      const emailLimited=code==='over_email_send_rate_limit';
+      throw new ApiError(429,emailLimited
+        ? 'The email service is temporarily limiting confirmation and recovery emails. Check your inbox and spam for an earlier link, or try again after the waiting period.'
+        : 'Too many requests. Please wait before trying again.',Number.isFinite(wait)&&wait>0?Math.ceil(wait):60,code);
+    }
     const message = data?.message || data?.msg || data?.error_description;
     // Auth diagnostics are normalized below; database messages are part of the event UX.
     throw new ApiError(r.status >= 500 ? 503 : r.status, typeof message === 'string' ? message.slice(0,400) : 'Request could not be completed.',undefined,data?.error_code || data?.code);
@@ -66,7 +73,12 @@ async function budget(s: Settings, request: Request, kind: string, account = '')
   const ip = s.ip || 'local';
   const hash = (v: string) => createHmac('sha256', s.secret).update(v).digest('hex');
   const result = await upstream(s, '/rest/v1/rpc/bh_gateway_budget', 'POST', { p_kind: kind, p_ip: hash('ip:'+ip), p_account: account ? hash('account:'+account.trim().toLowerCase()) : null }, undefined, true);
-  if (!result.allowed) throw new ApiError(429, 'Too many requests. Please wait and try again.', result.retry_after);
+  if (!result.allowed) throw new ApiError(429,
+    result.limit_scope==='account'&&kind==='signup'
+      ? 'Several signup requests were made for this email. Check your inbox and spam for the confirmation link. You can request another after the waiting period, or sign in if already confirmed.'
+      : result.limit_scope==='account'&&kind==='recover'
+        ? 'Several recovery requests were made for this email. Check your inbox and spam for the latest reset link, or wait before requesting another.'
+        : 'Too many requests. Please wait before trying again.',result.retry_after);
 }
 function normalizeSession(data: any, recovery = false): Session {
   if (!data?.access_token || !data?.refresh_token) throw new ApiError(401, 'Please sign in again.');
@@ -77,7 +89,7 @@ async function session(request: Request, s: Settings, headers: Headers) {
   if (!value?.access_token || !value.refresh_token || !Number.isFinite(value.expires_at)) return null;
   if (value.expires_at < Date.now()/1000+60) {
     try { value = normalizeSession(await upstream(s,'/auth/v1/token?grant_type=refresh_token','POST',{refresh_token:value.refresh_token}),value.recovery); cookie(headers,s,'session',value,86400); }
-    catch (e) { if (e instanceof ApiError && e.status < 500) { cookie(headers,s,'session',null,0); return null; } throw e; }
+    catch (e) { if (e instanceof ApiError && (e.status===400||e.status===401||e.status===403)) { cookie(headers,s,'session',null,0); return null; } throw e; }
   }
   return value;
 }

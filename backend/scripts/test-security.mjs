@@ -30,6 +30,13 @@ await check('Anonymous direct public RPC and gateway budget calls are denied',as
 await check('Authenticated clients cannot impersonate the gateway',async()=>{await db.exec('set role authenticated');await assert.rejects(()=>db.query("select public.bh_gateway_budget('rpc',repeat('a',64),null)"));await db.exec('reset role');});
 await check('Service gateway public reads are allowed',async()=>{await db.exec('set role service_role');assert.ok((await db.query('select public.bh_public_state() value')).rows[0].value);await db.exec('reset role');});
 await check('Gateway recovery budget persists denial without an exception',async()=>{for(let i=0;i<3;i++)assert.equal((await db.query("select public.bh_gateway_budget('recover',repeat('a',64),repeat('b',64)) value")).rows[0].value.allowed,true);assert.equal((await db.query("select public.bh_gateway_budget('recover',repeat('a',64),repeat('b',64)) value")).rows[0].value.allowed,false);});
+await check('Signup quotas are per account and report the remaining fixed-window wait',async()=>{
+ for(let i=0;i<3;i++)assert.equal((await db.query("select public.bh_gateway_budget('signup',repeat('c',64),repeat('d',64)) value")).rows[0].value.allowed,true);
+ const limited=(await db.query("select public.bh_gateway_budget('signup',repeat('c',64),repeat('d',64)) value")).rows[0].value;
+ const expected=(await db.query("select ceil(extract(epoch from window_start+interval '1 hour'-clock_timestamp()))::integer seconds from bughunt.request_budgets where bucket='account:signup' and subject=repeat('d',64)")).rows[0].seconds;
+ assert.equal(limited.limit_scope,'account');assert.ok(Math.abs(limited.retry_after-expected)<=1);
+ assert.equal((await db.query("select public.bh_gateway_budget('signup',repeat('c',64),repeat('e',64)) value")).rows[0].value.allowed,true);
+});
 await check('Budget resets at a new window and stores no plaintext email/IP',async()=>{await db.exec("update bughunt.request_budgets set window_start=now()-interval '2 hours' where bucket='account:recover'");assert.equal((await db.query("select public.bh_gateway_budget('recover',repeat('a',64),repeat('b',64)) value")).rows[0].value.allowed,true);const rows=(await db.query("select subject from bughunt.request_budgets where bucket like 'account:%' or bucket like 'gateway:%'")).rows;assert.ok(rows.every(x=>/^[a-f0-9]{64}$/.test(x.subject)));});
 await check('Rate budget table has RLS and denies browser access',async()=>{assert.equal((await db.query("select relrowsecurity value from pg_class where oid='bughunt.request_budgets'::regclass")).rows[0].value,true);await db.exec('set role authenticated');await assert.rejects(()=>db.query('select * from bughunt.request_budgets'));await db.exec('reset role');});
 await check('Audit minimization preserves provenance without duplicating answers or rosters',async()=>{await db.query(`select bughunt.audit_write('test','object','{"score":10,"answer":{"text":"private"},"members":["private"],"email":"private"}','{"score":20,"access_token":"private"}','decision')`);const row=(await db.query("select old_value,new_value,reason from bughunt.audit where action='test'")).rows[0];assert.deepEqual(row.old_value,{score:10});assert.deepEqual(row.new_value,{score:20});assert.equal(row.reason,'decision');});
@@ -39,11 +46,12 @@ const originalFetch=globalThis.fetch;
 const previous={...process.env};
 Object.assign(process.env,{SUPABASE_URL:'https://isolated.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_isolated',SUPABASE_SECRET_KEY:'sb_secret_isolated_test_only',VERCEL:'1'});
 const token='test.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,aal:'aal1'})).toString('base64url')+'.test';
-let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null;
+let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200;
 globalThis.fetch=async(url,options)=>{calls.push({url:String(url),body:options?.body,headers:options?.headers});if(failed)throw Error('isolated transport outage');let data={};
- if(providerFailure && /\/auth\/v1\/(signup|recover)/.test(String(url)))return new Response(JSON.stringify(providerFailure.body),{status:providerFailure.status,headers:{'Content-Type':'application/json'}});
+ if(providerFailure && /\/auth\/v1\/(signup|recover)/.test(String(url)))return new Response(JSON.stringify(providerFailure.body),{status:providerFailure.status,headers:{'Content-Type':'application/json',...providerFailure.headers}});
+ if(String(url).includes('grant_type=refresh_token')&&refreshStatus!==200)return new Response(JSON.stringify({msg:'Temporary refresh failure'}),{status:refreshStatus,headers:{'Retry-After':'37'}});
  if(String(url).endsWith('bh_gateway_budget'))data={allowed,retry_after:600};
- else if(String(url).includes('/auth/v1/token'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:3600};
+ else if(String(url).includes('/auth/v1/token'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:sessionSeconds};
  else if(String(url).endsWith('/auth/v1/user'))data={id:uid,email:'staff@example.test',factors:[]};
  else if(String(url).endsWith('/challenge'))data={id:'challenge'};
  else if(String(url).endsWith('/verify'))data={access_token:'test.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,aal:'aal2',sub:uid})).toString('base64url')+'.test',refresh_token:'isolated-mfa-refresh',expires_in:3600};
@@ -85,6 +93,15 @@ try {
  await check('New and unconfirmed signup identities retain confirmation flow',async()=>{
   providerFailure={status:200,body:{id:'new-id',identities:[{provider:'email'}]}};
   const r=await handleWebApi(request('auth/signup',{email:'new@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:true});assert.match(r.headers.get('set-cookie'),/HttpOnly/);providerFailure=null;
+ });
+ await check('Provider email throttling retains Retry-After and actionable email guidance',async()=>{
+  providerFailure={status:429,body:{error_code:'over_email_send_rate_limit'},headers:{'Retry-After':'127'}};
+  const r=await handleWebApi(request('auth/signup',{email:'a@example.test',password:'123456'}),'auth/signup');assert.equal(r.status,429);assert.equal(r.headers.get('retry-after'),'127');assert.match((await r.json()).message,/email service/);providerFailure=null;
+ });
+ await check('Refresh throttling and outages preserve the signed-in cookie; invalid refresh clears it',async()=>{
+  sessionSeconds=1;const login=await handleWebApi(request('auth/login',{email:'staff@example.test',password:'123456'}),'auth/login');const stored=login.headers.get('set-cookie').split(';')[0];sessionSeconds=3600;
+  for(const status of [429,503]){refreshStatus=status;const r=await handleWebApi(request('auth/session',{}, {Cookie:stored}),'auth/session');assert.equal(r.status,status);assert.equal(r.headers.get('set-cookie'),null);}
+  refreshStatus=401;const r=await handleWebApi(request('auth/session',{}, {Cookie:stored}),'auth/session');assert.equal(r.status,200);assert.equal((await r.json()).session,null);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);refreshStatus=200;
  });
  await check('Callback rejects missing browser-bound verifier',async()=>{const r=await handleWebApi(new Request(origin+'/api/auth/callback?code=foreign-code'),'auth/callback');assert.equal(r.status,400);});
  await check('Logout clears the cookie',async()=>{const r=await handleWebApi(request('auth/logout',{}, {Cookie:cookie}),'auth/logout');assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);});
