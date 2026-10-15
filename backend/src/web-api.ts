@@ -175,25 +175,33 @@ export async function handleWebApi(request: Request, path: string): Promise<Resp
         if(!value.recovery)await admit(s,value);
         cookie(headers,s,'session',value,86400);result={verified:true,recovery:!!value.recovery};
       } else if(action==='signup'||action==='recover'||action==='resend') {
-        const payload:any={email:address};
-        if(action==='signup')payload.password=validatePassword(body.password);
-        if(action==='resend')payload.type='signup';
-        let alreadyRegistered=false;
-        try {
-          const response=await upstream(s,`/auth/v1/${action==='signup'?'signup':action==='resend'?'resend':'recover'}`,'POST',payload);
-          // Supabase can return HTTP 200 with an empty identity list for an existing account.
-          const signupUser=response?.user ?? response;
-          alreadyRegistered=action==='signup'&&Array.isArray(signupUser?.identities)&&signupUser.identities.length===0;
+        const password=action==='signup'?validatePassword(body.password):undefined;
+        const account=await upstream(s,'/rest/v1/rpc/bh_email_account_state','POST',{p_email:address},undefined,true);
+        if(typeof account?.exists!=='boolean'||typeof account?.confirmed!=='boolean')throw new ApiError(503,'Account status could not be checked. Please try again.');
+        if(action==='signup'&&account.confirmed)result={accepted:false,alreadyRegistered:true};
+        else if(action==='resend'&&account.confirmed)result={accepted:false,alreadyConfirmed:true};
+        else if(action!=='signup'&&!account.exists)result={accepted:false,accountMissing:true};
+        else {
+          const payload:any={email:address};
+          if(action==='signup')payload.password=password;
+          if(action==='resend')payload.type='signup';
+          let alreadyRegistered=false,accountMissing=false;
+          try {
+            const response=await upstream(s,`/auth/v1/${action==='signup'?'signup':action==='resend'?'resend':'recover'}`,'POST',payload);
+            // Keep the provider fallback for an account confirmed between lookup and signup.
+            const signupUser=response?.user ?? response;
+            alreadyRegistered=action==='signup'&&Array.isArray(signupUser?.identities)&&signupUser.identities.length===0;
+          }
+          catch(e){
+            // Invalid input, SMTP, configuration errors and throttling cannot look like a sent email.
+            const known=e instanceof ApiError && e.status<500 && e.status!==429 && ((action==='signup'&&e.providerCode==='user_already_exists') || (action==='recover'&&e.providerCode==='user_not_found'));
+            if(!known)throw e;
+            alreadyRegistered=action==='signup';accountMissing=action==='recover';
+          }
+          if(alreadyRegistered)result={accepted:false,alreadyRegistered:true};
+          else if(accountMissing)result={accepted:false,accountMissing:true};
+          else result={accepted:true};
         }
-        catch(e){
-          // Only normalize known account-existence responses. Invalid input, SMTP,
-          // configuration errors and throttling must never look like a sent email.
-          const hidden=e instanceof ApiError && e.status<500 && e.status!==429 && ((action==='signup'&&e.providerCode==='user_already_exists') || (action==='recover'&&e.providerCode==='user_not_found'));
-          if(!hidden)throw e;
-          alreadyRegistered=action==='signup';
-        }
-        if(alreadyRegistered)result={accepted:false,alreadyRegistered:true};
-        else result={accepted:true};
       } else if(action==='session') {
         try { result={session:value?{user:await user(s,value)}:null,recovery:!!value?.recovery}; }
         catch(e){

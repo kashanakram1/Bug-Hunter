@@ -34,8 +34,10 @@ try{
  await page.getByRole('button',{name:'New here? Create an account',exact:true}).click();
  await page.getByLabel('Email',{exact:true}).fill('existing@example.test');await page.getByLabel('Password',{exact:true}).fill('123456');
  await page.getByRole('button',{name:'Create account',exact:true}).click();
- await page.getByText('This email is already registered. Sign in, or use Forgot password to recover your account.',{exact:true}).waitFor();
- duplicateSignup=false;await page.getByRole('button',{name:'Create account',exact:true}).click();
+ await page.getByText('This email is already registered and confirmed. Sign in, or use Forgot password to request a reset code.',{exact:true}).waitFor();
+ await page.getByRole('heading',{name:'Enter the arena',exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Email',{exact:true}).inputValue(),'existing@example.test');
+ duplicateSignup=false;await page.getByRole('button',{name:'New here? Create an account',exact:true}).click();await page.getByLabel('Password',{exact:true}).fill('123456');await page.getByRole('button',{name:'Create account',exact:true}).click();
  await page.getByRole('heading',{name:'Confirm your email',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:/Resend code in/}).isDisabled(),true);
  assert.equal(await page.getByRole('button',{name:'Verify code',exact:true}).isEnabled(),true);

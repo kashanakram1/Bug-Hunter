@@ -48,11 +48,25 @@ export function AuthScreen({
   function changeMode(next: 'login' | 'signup' | 'reset') {
     setMode(next);setStep(next === 'reset' ? 'code' : 'request');setError('');setNotice('');
   }
+  function emailOutcome(result: {alreadyRegistered?: boolean; alreadyConfirmed?: boolean; accountMissing?: boolean}) {
+    if (result.accountMissing) {
+      changeMode('signup');
+      setNotice('No account exists for this email. Create your account below to receive a confirmation code.');
+      return true;
+    }
+    if (result.alreadyRegistered || result.alreadyConfirmed) {
+      changeMode('login');
+      setNotice('This email is already registered and confirmed. Sign in, or use Forgot password to request a reset code.');
+      return true;
+    }
+    return false;
+  }
   async function resend() {
     if (submitting.current || (cooldowns[sendScope] || 0) > Date.now()) return;
     submitting.current = true;setBusy(true);setError('');
     try {
-      await api(mode === 'signup' ? 'auth/resend' : 'auth/recover', {email: address});
+      const result = await api(mode === 'signup' ? 'auth/resend' : 'auth/recover', {email: address});
+      if (emailOutcome(result)) return;
       setNotice('Request accepted. Check your inbox and spam for the latest eight-digit code. Delivery can take a few minutes.');
       setNow(Date.now());setCooldowns(current => ({...current, [sendScope]: Date.now()+60000}));
     } catch(e) {
@@ -85,16 +99,15 @@ export function AuthScreen({
         announceAuthChange();
       } else if (mode === 'signup') {
         const result = await api('auth/signup', { email, password });
-        setNotice(result.alreadyRegistered
-          ? 'This email is already registered. Sign in, or use Forgot password to recover your account.'
-          : 'Request accepted. Check your inbox and spam for an eight-digit confirmation code. Delivery can take a few minutes.');
-        if (!result.alreadyRegistered) {
+        if (!emailOutcome(result)) {
+          setNotice('Request accepted. Check your inbox and spam for an eight-digit confirmation code. Delivery can take a few minutes.');
           setStep('code');
           setNow(Date.now());
           setCooldowns(current => ({...current, [scope]: Date.now() + 60000}));
         }
       } else {
-        await api('auth/recover', { email });
+        const result = await api('auth/recover', { email });
+        if (emailOutcome(result)) return;
         setNotice(
           'If this address has an account, a reset code has been requested. Check your inbox and spam, then enter the latest eight-digit code.',
         );

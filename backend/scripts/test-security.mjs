@@ -40,19 +40,28 @@ await check('Signup quotas are per account and report the remaining fixed-window
 await check('Budget resets at a new window and stores no plaintext email/IP',async()=>{await db.exec("update bughunt.request_budgets set window_start=now()-interval '2 hours' where bucket='account:recover'");assert.equal((await db.query("select public.bh_gateway_budget('recover',repeat('a',64),repeat('b',64)) value")).rows[0].value.allowed,true);const rows=(await db.query("select subject from bughunt.request_budgets where bucket like 'account:%' or bucket like 'gateway:%'")).rows;assert.ok(rows.every(x=>/^[a-f0-9]{64}$/.test(x.subject)));});
 await check('Rate budget table has RLS and denies browser access',async()=>{assert.equal((await db.query("select relrowsecurity value from pg_class where oid='bughunt.request_budgets'::regclass")).rows[0].value,true);await db.exec('set role authenticated');await assert.rejects(()=>db.query('select * from bughunt.request_budgets'));await db.exec('reset role');});
 await check('Audit minimization preserves provenance without duplicating answers or rosters',async()=>{await db.query(`select bughunt.audit_write('test','object','{"score":10,"answer":{"text":"private"},"members":["private"],"email":"private"}','{"score":20,"access_token":"private"}','decision')`);const row=(await db.query("select old_value,new_value,reason from bughunt.audit where action='test'")).rows[0];assert.deepEqual(row.old_value,{score:10});assert.deepEqual(row.new_value,{score:20});assert.equal(row.reason,'decision');});
+await check('Email account state distinguishes missing, pending and confirmed without returning user records',async()=>{
+ await db.exec("insert into auth.users values('00000000-0000-4000-8000-000000000098','pending@example.test',null);set role service_role");
+ for(const [address,expected] of [[' STAFF@EXAMPLE.TEST ',{exists:true,confirmed:true}],['pending@example.test',{exists:true,confirmed:false}],['missing@example.test',{exists:false,confirmed:false}]])assert.deepEqual((await db.query('select public.bh_email_account_state($1) value',[address])).rows[0].value,expected);
+ await db.exec('reset role');
+});
+await check('Email account lookup denies anonymous and authenticated direct access',async()=>{
+ for(const role of ['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(()=>db.query("select public.bh_email_account_state('staff@example.test')"));await db.exec('reset role');}
+});
 await db.close();
 
 const originalFetch=globalThis.fetch;
 const previous={...process.env};
 Object.assign(process.env,{SUPABASE_URL:'https://isolated.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_isolated',SUPABASE_SECRET_KEY:'sb_secret_isolated_test_only',VERCEL:'1'});
 const token='test.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,aal:'aal1'})).toString('base64url')+'.test';
-let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200,verificationFailure=false,userStatus=200;
+let allowed=true,failed=false,calls=[],teamLogin=false,deviceAllowed=true,providerFailure=null,sessionSeconds=3600,refreshStatus=200,verificationFailure=false,userStatus=200,accountState={exists:true,confirmed:false};
 globalThis.fetch=async(url,options)=>{calls.push({url:String(url),body:options?.body,headers:options?.headers});if(failed)throw Error('isolated transport outage');let data={};
- if(providerFailure && /\/auth\/v1\/(signup|recover)/.test(String(url)))return new Response(JSON.stringify(providerFailure.body),{status:providerFailure.status,headers:{'Content-Type':'application/json',...providerFailure.headers}});
+ if(providerFailure && /\/auth\/v1\/(signup|recover|resend)/.test(String(url)))return new Response(JSON.stringify(providerFailure.body),{status:providerFailure.status,headers:{'Content-Type':'application/json',...providerFailure.headers}});
  if(String(url).includes('grant_type=refresh_token')&&refreshStatus!==200)return new Response(JSON.stringify({msg:'Temporary refresh failure'}),{status:refreshStatus,headers:{'Retry-After':'37'}});
  if(String(url).endsWith('/auth/v1/verify')&&verificationFailure)return new Response(JSON.stringify({error_code:'otp_expired',msg:'Token expired'}),{status:403});
  if(String(url).endsWith('/auth/v1/user')&&options?.method==='GET'&&userStatus!==200)return new Response(JSON.stringify({msg:'User lookup failed'}),{status:userStatus});
  if(String(url).endsWith('bh_gateway_budget'))data={allowed,retry_after:600};
+ else if(String(url).endsWith('bh_email_account_state'))data=accountState;
  else if(String(url).includes('/auth/v1/token'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:sessionSeconds};
  else if(String(url).endsWith('/auth/v1/verify'))data={access_token:token,refresh_token:'isolated-refresh',expires_in:3600};
  else if(String(url).endsWith('/auth/v1/user'))data={id:uid,email:'staff@example.test',factors:[]};
@@ -87,11 +96,29 @@ try {
  await check('Account and IP quotas run before failed login and return Retry-After',async()=>{allowed=false;const before=calls.length;const r=await handleWebApi(request('auth/login',{email:'staff@example.test',password:'123456'}),'auth/login');assert.equal(r.status,429);assert.equal(r.headers.get('retry-after'),'600');assert.equal(calls.length,before+1);assert.ok(!calls.at(-1).body.includes('staff@example.test')&&!calls.at(-1).body.includes('192.0.2.1'));allowed=true;});
  await check('Limiter outage fails closed and does not disclose secrets',async()=>{failed=true;const r=await handleWebApi(request('auth/login',{email:'staff@example.test',password:'123456'}),'auth/login');assert.equal(r.status,503);assert.ok(!(await r.text()).includes(process.env.SUPABASE_SECRET_KEY));failed=false;});
  await check('Email-code request is browser-independent and sets no verifier or auth cookie',async()=>{const r=await handleWebApi(request('auth/recover',{email:'staff@example.test'}),'auth/recover');assert.equal(r.status,200);assert.equal(r.headers.get('set-cookie'),null);assert.deepEqual(JSON.parse(calls.at(-1).body),{email:'staff@example.test'});assert.deepEqual(await r.json(),{accepted:true});});
+ await check('Confirmed signup and confirmation resend give explicit guidance without sending an email',async()=>{
+  accountState={exists:true,confirmed:true};
+  for(const [action,flag] of [['signup','alreadyRegistered'],['resend','alreadyConfirmed']]){const before=calls.length;const r=await handleWebApi(request('auth/'+action,{email:'confirmed@example.test',password:'123456'}),'auth/'+action);assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:false,[flag]:true});assert.ok(calls.slice(before).every(c=>!c.url.includes('/auth/v1/')));assert.equal(r.headers.get('set-cookie'),null);}
+  const r=await handleWebApi(request('auth/recover',{email:'confirmed@example.test'}),'auth/recover');assert.deepEqual(await r.json(),{accepted:true});assert.ok(calls.at(-1).url.endsWith('/auth/v1/recover'));
+  accountState={exists:true,confirmed:false};
+ });
+ await check('Missing recovery/resend accounts never claim an email was sent; new signup still sends',async()=>{
+  accountState={exists:false,confirmed:false};
+  for(const action of ['recover','resend']){const before=calls.length;const r=await handleWebApi(request('auth/'+action,{email:'missing@example.test'}),'auth/'+action);assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:false,accountMissing:true});assert.ok(calls.slice(before).every(c=>!c.url.includes('/auth/v1/')));}
+  const r=await handleWebApi(request('auth/signup',{email:'new@example.test',password:'123456'}),'auth/signup');assert.deepEqual(await r.json(),{accepted:true});assert.ok(calls.at(-1).url.endsWith('/auth/v1/signup'));
+  accountState={exists:true,confirmed:false};
+ });
+ await check('Malformed account status fails closed before email delivery',async()=>{
+  accountState={};const before=calls.length;const r=await handleWebApi(request('auth/recover',{email:'a@example.test'}),'auth/recover');assert.equal(r.status,503);assert.ok(calls.slice(before).every(c=>!c.url.includes('/auth/v1/')));accountState={exists:true,confirmed:false};
+ });
  await check('Signup and recovery never mask validation, configuration, SMTP, or rate errors as success',async()=>{
-  for(const path of ['signup','recover'])for(const failure of [{status:422,body:{error_code:'email_address_invalid',msg:'Email address is invalid'}},{status:401,body:{error_code:'bad_jwt',msg:'Invalid API configuration'}},{status:500,body:{error_code:'unexpected_failure',msg:'Error sending confirmation email'}},{status:429,body:{error_code:'over_email_send_rate_limit',msg:'Email limit exceeded'}}]){
+  for(const path of ['signup','recover','resend'])for(const failure of [{status:422,body:{error_code:'email_address_invalid',msg:'Email address is invalid'}},{status:401,body:{error_code:'bad_jwt',msg:'Invalid API configuration'}},{status:500,body:{error_code:'unexpected_failure',msg:'Error sending confirmation email'}},{status:429,body:{error_code:'over_email_send_rate_limit',msg:'Email limit exceeded'}}]){
    providerFailure=failure;const r=await handleWebApi(request('auth/'+path,{email:'a@example.test',password:'123456'}),'auth/'+path);assert.equal(r.status,failure.status===500?503:failure.status);assert.equal(r.headers.get('set-cookie'),null);
   }
   providerFailure=null;
+ });
+ await check('Concurrent account removal during recovery does not claim delivery',async()=>{
+  providerFailure={status:422,body:{error_code:'user_not_found',msg:'User not found'}};const r=await handleWebApi(request('auth/recover',{email:'removed@example.test'}),'auth/recover');assert.equal(r.status,200);assert.deepEqual(await r.json(),{accepted:false,accountMissing:true});providerFailure=null;
  });
  await check('Both provider duplicate-signup responses direct existing users to sign in without replacing an email verifier',async()=>{
   for(const response of [{status:422,body:{error_code:'user_already_exists',msg:'Already registered'}},{status:200,body:{id:'sanitized-id',identities:[]}}]){
