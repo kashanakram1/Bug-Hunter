@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './competition.css';
+import './event-theme.css';
 import { CompetitionTools } from '@/components/competition/webmcp';
 export const dynamic = 'force-dynamic';
 

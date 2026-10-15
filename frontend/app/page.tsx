@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 import { supabase, rpc, message } from '@/lib/supabase';
-import { Brand, ErrorBox, EventIdentity, Loading } from '@/components/competition/common';
+import { Brand, ErrorBox, EventIdentity, Loading, SiteFooter } from '@/components/competition/common';
 import { AuthScreen, Registration } from '@/components/competition/auth';
 import { TeamPortal } from '@/components/competition/team';
 import { StaffPortal } from '@/components/competition/staff';
@@ -150,14 +150,7 @@ export default function Home() {
           <Registration onDone={refresh} />
         )}
       </main>
-      <footer className="site-footer">
-        <span>CODE CONNECT 26 / BUG HUNTER MODULE-5</span>
-        <div className="actions">
-          <a href="/?legal=terms">Terms of use</a>
-          <a href="/?legal=privacy">Privacy notice</a>
-        </div>
-        <span>University of Karachi · UBIT Career Connect 26</span>
-      </footer>
+      <SiteFooter />
       <Toaster position="bottom-right" />
     </>
   );

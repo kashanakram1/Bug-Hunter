@@ -33,6 +33,29 @@ export function Brand() {
     </a>
   );
 }
+export function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-inner">
+        <div className="footer-credit">
+          <span className="footer-eyebrow"><span aria-hidden="true">//</span> ENGINEERED BY</span>
+          <p>Designed &amp; developed by</p>
+          <strong className="footer-author"><span aria-hidden="true">&lt;/&gt;</span> KASHANAKRAM</strong>
+        </div>
+        <div className="footer-institution">
+          <span className="footer-event">© 2026 CODE//CONNECT’26</span>
+          <strong>UNIVERSITY OF KARACHI</strong>
+          <span>Department of Computer Science · UBIT</span>
+          <nav className="footer-links" aria-label="Legal information">
+            <a href="/?legal=terms">Terms of use</a>
+            <span aria-hidden="true">/</span>
+            <a href="/?legal=privacy">Privacy notice</a>
+          </nav>
+        </div>
+      </div>
+    </footer>
+  );
+}
 export function ErrorBox({ error }: { error: string }) {
   return error ? (
     <div role="alert" className="error-box">

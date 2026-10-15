@@ -1,22 +1,22 @@
 :root {
-  --background: #0d0d0d;
-  --foreground: #eeeae4;
-  --card: #181818;
-  --card-foreground: #eeeae4;
-  --popover: #181818;
-  --popover-foreground: #eeeae4;
-  --primary: #e34450;
-  --primary-foreground: #fff3ef;
-  --secondary: #242424;
-  --secondary-foreground: #eeeae4;
-  --muted: #242424;
-  --muted-foreground: #b9b5b0;
-  --accent: #242424;
-  --accent-foreground: #e34450;
-  --border: #454545;
-  --input: #76716f;
-  --ring: #e34450;
-  --destructive: #f17e83;
+  --background: #090607;
+  --foreground: #f5f0ee;
+  --card: #130c0e;
+  --card-foreground: #f5f0ee;
+  --popover: #160e10;
+  --popover-foreground: #f5f0ee;
+  --primary: #ff3048;
+  --primary-foreground: #ffffff;
+  --secondary: #251216;
+  --secondary-foreground: #f5f0ee;
+  --muted: #211619;
+  --muted-foreground: #b9aaad;
+  --accent: #2d141a;
+  --accent-foreground: #ff6476;
+  --border: #3a272c;
+  --input: #72555c;
+  --ring: #ff5368;
+  --destructive: #ff8392;
   --radius: 0;
   color-scheme: dark;
 }
@@ -1258,15 +1258,12 @@ details summary {
   }
 }
 
-/* Deliberately flat interface. Focus uses an outline, independently of motion. */
+/* Angular event identity. Component styling owns depth and interaction states. */
 *,
 *::before,
 *::after {
   border-radius: 0 !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
   animation: none !important;
-  transition: none !important;
   backdrop-filter: none !important;
 }
 body {
