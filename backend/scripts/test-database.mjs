@@ -147,6 +147,33 @@ await check('Round access never leaks answer keys', async () => {
   assert.equal((await val('select public.bh_team_state(2)')).questions.length, 0);
 });
 const req = '00000000-0000-4000-8000-000000000101';
+await check('Shared-list noncanonical answers submit without ambiguous SQL references and retry only once', async () => {
+  const question=content.questions.find(q=>q.id==='R1-Q4');
+  const acceptedBug=question.accepted.parts.find(part=>part.field==='b').values[0];
+  for(const [bug,expected] of [[acceptedBug,5],['returning of the array',0]]){
+    await query('begin');
+    try{
+      const request=crypto.randomUUID();
+      const answer=JSON.stringify({a:'[2,1,3]',a2:'[3,2,1]',b:bug});
+      const first=await val("select public.bh_submit('R1-Q4',$1,$2)",[answer,request]);
+      const retry=await val("select public.bh_submit('R1-Q4',$1,$2)",[answer,request]);
+      assert.equal(first.id,retry.id);
+      const row=(await query('select suggested_score,state from bughunt.submissions where id=$1',[first.id]))[0];
+      assert.equal(Number(row.suggested_score),expected);assert.equal(row.state,'pending');
+      assert.equal(await val("select count(*)::int from bughunt.submissions where question_id='R1-Q4'"),1);
+    }finally{await query('rollback');}
+  }
+});
+await check('Every Round 1 question accepts complete noncanonical answers for review', async () => {
+  for(const question of content.questions.filter(q=>q.round_id===1)){
+    await query('begin');
+    try{
+      const answer=Object.fromEntries(question.fields.map(f=>[f.key,'uncanonical test answer']));
+      const result=await val('select public.bh_submit($1,$2,gen_random_uuid())',[question.id,JSON.stringify(answer)]);
+      assert.ok(result.id,question.id);
+    }finally{await query('rollback');}
+  }
+});
 await check('Atomic answer lock, idempotency, and auto-grading', async () => {
   await query(`select public.bh_submit('R1-Q1','{"a":" false ","b":"OBJECT"}',$1)`, [req]);
   await query(`select public.bh_submit('R1-Q1','{"a":"false","b":"object"}',$1)`, [req]);
