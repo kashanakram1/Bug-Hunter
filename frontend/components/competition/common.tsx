@@ -166,11 +166,13 @@ export function Timer({
   serverTime,
   pausedAt,
   large = false,
+  unlimited = false,
 }: {
   end?: string;
   serverTime?: string;
   pausedAt?: string;
   large?: boolean;
+  unlimited?: boolean;
 }) {
   const [anchor, setAnchor] = useState({ server: 0, local: 0 });
   const [remaining, setRemaining] = useState(0);
@@ -178,6 +180,7 @@ export function Timer({
     if (serverTime) setAnchor({ server: Date.parse(serverTime), local: performance.now() });
   }, [serverTime]);
   useEffect(() => {
+    if (unlimited) return;
     const tick = () => {
       const now = pausedAt
         ? Date.parse(pausedAt)
@@ -187,18 +190,18 @@ export function Timer({
     tick();
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [end, pausedAt, anchor]);
+  }, [end, pausedAt, anchor, unlimited]);
   return (
     <div className={`timer ${large ? 'large' : ''} ${remaining < 60 && end ? 'urgent' : ''}`}>
-      <span className="eyebrow">{pausedAt ? 'ROUND PAUSED' : 'TIME REMAINING'}</span>
+      <span className="eyebrow">{unlimited ? 'TESTING' : pausedAt ? 'ROUND PAUSED' : 'TIME REMAINING'}</span>
       <strong>
-        {end
+        {unlimited ? 'Unlimited' : end
           ? `${Math.floor(remaining / 60)
               .toString()
               .padStart(2, '0')}:${(remaining % 60).toString().padStart(2, '0')}`
           : '--:--'}
       </strong>
-      <small>{pausedAt ? 'Waiting for the organizer' : 'Synced with competition server'}</small>
+      <small>{unlimited ? 'No time limit' : pausedAt ? 'Waiting for the organizer' : 'Synced with competition server'}</small>
     </div>
   );
 }

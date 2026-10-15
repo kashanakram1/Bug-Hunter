@@ -120,7 +120,7 @@ export function StaffPortal({ role, online }: { role: string; online?: any }) {
           <button className="btn secondary small" onClick={refresh}>
             <></> Refresh
           </button>
-          {admin && !online?.enabled && (
+          {admin && !online?.enabled && !online?.testing && (
             <button
               className="btn danger small"
               onClick={() => act('pause_all', {}, 'Pause every open round')}
@@ -131,6 +131,7 @@ export function StaffPortal({ role, online }: { role: string; online?: any }) {
         </div>
       </div>
       <ErrorBox error={error} />
+      {online?.testing && <div className="notice">Unlimited testing is active for all four rounds. Testing stays open until the organizer requests closure. Official schedule and existing attempts are preserved.</div>}
       <Tabs
         value={tab}
         onValueChange={(v) => {
@@ -179,7 +180,7 @@ export function StaffPortal({ role, online }: { role: string; online?: any }) {
                                     0{r.id} · {r.name}
                                   </h3>
                                   <span className="muted">
-                                    {r.duration_seconds / 60} min / {r.max_points} points
+                                    {online?.testing ? 'No time limit' : `${r.duration_seconds / 60} min`} / {r.max_points} points
                                   </span>
                                 </div>
                                 <Chip
@@ -194,7 +195,7 @@ export function StaffPortal({ role, online }: { role: string; online?: any }) {
                                   {r.status}
                                 </Chip>
                               </header>
-                              {admin && (online?.enabled && r.id <= 3 ? (
+                              {admin && (online?.testing ? <p>Open for unlimited testing.</p> : online?.enabled && r.id <= 3 ? (
                                 <p>Scheduled online round. Opening, closing, extensions, and qualification are automatic.</p>
                               ) : <RoundActions round={r} act={act} />)}
                             </article>

@@ -111,8 +111,9 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
   const session = data?.session;
   const current = data?.round;
   const online = data?.online || boot.online;
-  const scheduled = Boolean(online?.enabled);
-  const progression = scheduled || Boolean(boot.event?.self_progression || data?.self_progression);
+  const testing = Boolean(online?.testing);
+  const scheduled = !testing && Boolean(online?.enabled);
+  const progression = !testing && (scheduled || Boolean(boot.event?.self_progression || data?.self_progression));
   useEffect(() => {
     if (data?.server_time) {
       clockAnchor.current = {
@@ -244,7 +245,8 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
       await rpc('bh_finish_round', { p_round: round });
       setFinish(false);
       await refresh();
-      toast.success('Round completed. Your submissions are recorded.');
+      if (testing) setRound(0);
+      toast.success(testing ? 'Your submissions are recorded. You can return to any test.' : 'Round completed. Your submissions are recorded.');
     } catch (e) {
       setError(message(e));
     } finally {
@@ -269,7 +271,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
     session &&
     !session.completed_at &&
     current?.status === 'open' &&
-    Date.parse(session.ends_at) > (serverNow || Date.parse(data.server_time)),
+    (testing || Date.parse(session.ends_at) > (serverNow || Date.parse(data.server_time))),
   );
   return (
     <>
@@ -283,7 +285,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
       {round > 0 && (
         <div className="round-clock-bar" aria-label={`Round ${round} timer`}>
           <span className="round-clock-name">Round {round} · {current?.name || rounds[round - 1].name}</span>
-          <Timer end={session?.ends_at} serverTime={data?.server_time} pausedAt={current?.paused_at} />
+          <Timer unlimited={testing} end={session?.ends_at} serverTime={data?.server_time} pausedAt={current?.paused_at} />
         </div>
       )}
       <div className="page-heading">
@@ -302,6 +304,12 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
           </Chip>
         )}
       </div>
+      {testing && (
+        <section className="notice" aria-label="Unlimited testing">
+          All four rounds are open for testing with no time limit. Choose any round and return whenever you like.
+          Existing submitted answers keep their attempt limits. Testing stays open until the organizer closes it.
+        </section>
+      )}
       {scheduled && (
         <section className="notice" aria-label="Online competition schedule">
           <p>
@@ -344,7 +352,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                 <div className="stat">
                   <></>
                   <span>Total round time</span>
-                  <strong>{scheduled ? '80 min per team' : '120 min'}</strong>
+                  <strong>{testing ? 'No time limit' : scheduled ? '80 min per team' : '120 min'}</strong>
                 </div>
                 <div className="stat">
                   <></>
@@ -382,6 +390,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   .map((r) => {
                     const state = boot.rounds.find((x: any) => x.id === r.id);
                     const qualified =
+                      testing ||
                       (progression && r.id <= 3) ||
                       r.id === 1 ||
                       data?.qualifications?.some((q: any) => q.round_id === r.id && q.qualified);
@@ -397,7 +406,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                       (teamRound
                         ? !data?.online_entered && r.id === 1 && (scheduled ? entryAllowed : state?.status === 'open')
                         : state?.status === 'open');
-                    const label = onlineRound
+                    const label = testing ? (available ? 'Open test' : 'Approval required') : onlineRound
                       ? data?.online_entered
                         ? 'Locked'
                         : serverNow < Date.parse(online.starts_at)
@@ -414,12 +423,12 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                       <article className={`round-card ${available ? 'available' : ''}`} key={r.id}>
                         <span className="round-index">0{r.id}</span>
                         <Chip tone={available ? 'green' : ''}>
-                          {onlineRound ? label : qualified ? 'Eligible' : 'Locked'}
+                          {testing ? 'Testing' : onlineRound ? label : qualified ? 'Eligible' : 'Locked'}
                         </Chip>
                         <h3>{r.name}</h3>
                         <p>{r.description}</p>
                         <div className="round-meta">
-                          {r.duration} MIN · {r.points} PTS · {r.count.toUpperCase()}
+                          {testing ? 'NO TIME LIMIT' : `${r.duration} MIN`} · {r.points} PTS · {r.count.toUpperCase()}
                         </div>
                         <button
                           className={`btn ${available ? '' : 'secondary'}`}
@@ -447,7 +456,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   </div>
                   <ol className="rules">
                     <li>
-                      {scheduled
+                      {testing ? 'All four tests are available without a countdown. You can enter them in any order and revisit them.' : scheduled
                         ? 'Enter during the scheduled 20-minute entry window. Your competition clock starts when you enter Round 1.'
                         : progression ? 'Enter through Round 1 when the competition opens. Move forward whenever you are ready; earlier answers will lock.' : 'Only start when the organizer opens your round. Your timer starts when you enter.'}
                     </li>
@@ -495,10 +504,10 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   <button
                     className="btn secondary small"
                     disabled={busy || !session || Boolean(session.completed_at) || (round >= 3 && !canEdit)}
-                    onClick={() => setFinish(true)}
+                    onClick={() => testing ? void endRound() : setFinish(true)}
                   >
                     <></>{' '}
-                    {progression && round < 3
+                    {testing ? 'Back to tests' : progression && round < 3
                       ? 'Move to next round'
                       : 'Finish round'}
                   </button>

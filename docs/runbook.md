@@ -43,3 +43,9 @@ Keep private backups and exports according to institutional policy. Review perso
 ## Stopping local test services
 
 The preview process can be stopped normally. The isolated PostgreSQL server uses `private/loadtest-db` and listens only on `127.0.0.1:55432`; stop it with `tools/postgresql-local/bin/pg_ctl.exe -D private/loadtest-db stop`. Keep these test files ignored. Never point a load-test reset or cleanup operation at the production connection string.
+
+## Unlimited testing
+
+After applying `202610160001_unlimited_testing.sql`, run `node backend/scripts/testing-mode.mjs on` only when the organizer requests it. This opens all four rounds without an entry deadline, countdown, qualification gate, or automatic expiry. Approved teams can enter and revisit any round. Authentication, device limits, submission limits, scoring, and saved answers still apply. Existing official round sessions remain untouched; testing entries use a separate private table.
+
+Check with `node backend/scripts/testing-mode.mjs status`. When the organizer explicitly requests closure, run `node backend/scripts/testing-mode.mjs off`. Both mutations back up event settings privately and audit the change; the official 17 October 2026, 4 PM Pakistan schedule remains configured. Testing does not clear used attempts or separate practice scores from competition scores. Resetting saved practice progress requires a separate approved archive/reset.

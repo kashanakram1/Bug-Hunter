@@ -18,7 +18,8 @@
     "test:workflow": "node scripts/browser-workflow.mjs",
     "check:live": "node scripts/live-check.mjs",
     "test:security": "node scripts/test-security.mjs",
-    "test:online": "node scripts/test-online-schedule.mjs"
+    "test:online": "node scripts/test-online-schedule.mjs",
+    "test:testing": "node scripts/test-unlimited-testing.mjs"
   },
   "dependencies": {
     "pg": "8.23.1"
