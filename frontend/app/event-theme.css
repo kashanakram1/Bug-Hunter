@@ -200,6 +200,26 @@ input:-webkit-autofill { -webkit-text-fill-color: var(--foreground); box-shadow:
 .information-page { background: var(--event-surface); border: 1px solid var(--border); padding: 32px; }
 .information-page h2 { color: #ff7b91; }
 
+/* One question, one compact guide; keep the scoring form close to the answer. */
+.review-grid { align-items: start; gap: 24px; }
+.review-section-label { color: #d4a9b8; font: 600 .7rem var(--event-mono); letter-spacing: .06em; margin: 20px 0 12px; }
+.review-answer-label { display: block; font-size: .8rem; color: #d9c4cc; margin: 14px 0 6px; }
+.review-answer .answer-text { margin-top: 0; }
+.marking-guide { padding: 20px; background: linear-gradient(130deg, #28131c, #140d11); border: 1px solid #59313e; border-top: 2px solid #c03954; min-width: 0; }
+.staff-item .marking-guide > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; }
+.marking-guide h3 { color: #ff9aae; font-size: .9rem; margin: 0; }
+.marking-guide-summary { font-size: .85rem; line-height: 1.75; color: #eddee4; overflow-wrap: anywhere; }
+.marking-guide-summary p { margin: 0 0 10px; }
+.marking-guide-summary p:last-child { margin-bottom: 0; }
+.marking-guide-criteria { list-style: none; margin: 16px 0 0; padding: 0; border-top: 1px solid var(--border); }
+.marking-guide-criteria li { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding-top: 10px; font-size: .77rem; color: var(--muted-foreground); }
+.marking-guide-criteria strong { flex-shrink: 0; color: #f1d5e1; font: 500 .72rem var(--event-mono); }
+.marking-guide-note { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: .74rem; line-height: 1.7; color: var(--muted-foreground); }
+.marking-guide-note strong { color: var(--foreground); }
+.staff-item .rubric { display: flex; flex-wrap: wrap; gap: 16px; }
+.staff-item .rubric .field { flex: 0 1 230px; max-width: 100%; }
+.staff-item .rubric .field input { width: 100%; }
+
 /* Full-width credit footer, shared by account, participant and organizer screens. */
 .site-footer {
   display: block;

@@ -94,13 +94,17 @@ if (mode === 'check') {
   const path = new URL('private/official-content.json', root);
   if (!existsSync(path)) throw new Error('Private official question bank is missing.');
   const content = JSON.parse(readFileSync(path, 'utf8'));
+  const guidePath = new URL('private/marking-guides.json', root);
+  const guides = existsSync(guidePath)
+    ? new Map(JSON.parse(readFileSync(guidePath, 'utf8')).map((g) => [g.id, g.text]))
+    : new Map();
   if (content.questions.length !== 23 || content.bugs.length !== 12)
     throw new Error('Invalid official content counts.');
   const literal = (v) => "'" + JSON.stringify(v).replaceAll("'", "''") + "'::jsonb";
   let sql = `begin; select pg_advisory_xact_lock(2026,9002); do $$ begin if exists(select 1 from bughunt.rounds where status<>'draft') then raise exception 'Question bank is frozen after a round opens'; end if; end $$;`;
   for (const q of content.questions) {
     const { explanation, rubric, accepted, ...row } = q;
-    sql += `\ninsert into bughunt.questions select * from jsonb_populate_record(null::bughunt.questions,${literal(row)}) on conflict(id) do nothing;\ninsert into bughunt.answer_keys select * from jsonb_populate_record(null::bughunt.answer_keys,${literal({ question_id: q.id, explanation, rubric, accepted })}) on conflict(question_id) do nothing;`;
+    sql += `\ninsert into bughunt.questions select * from jsonb_populate_record(null::bughunt.questions,${literal(row)}) on conflict(id) do nothing;\ninsert into bughunt.answer_keys select * from jsonb_populate_record(null::bughunt.answer_keys,${literal({ question_id: q.id, explanation: guides.get(q.id) || explanation, rubric, accepted })}) on conflict(question_id) do nothing;`;
   }
   for (const b of content.bugs)
     sql += `\ninsert into bughunt.bugs select * from jsonb_populate_record(null::bughunt.bugs,${literal(b)}) on conflict(id) do nothing;`;

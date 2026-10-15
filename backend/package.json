@@ -11,6 +11,7 @@
     "db:check": "node scripts/database.mjs check",
     "db:migrate": "node scripts/database.mjs migrate",
     "db:seed": "node scripts/database.mjs seed",
+    "db:guides": "node scripts/update-marking-guides.mjs",
     "staff": "node scripts/database.mjs staff",
     "test": "node scripts/test-database.mjs",
     "test:load": "node scripts/load-test.mjs",

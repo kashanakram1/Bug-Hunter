@@ -30,6 +30,12 @@ Current hosting is the Next.js server application on Vercel. Set Root Directory 
 8. In the final, judges map claims to known bugs, mark duplicates, reject wrong claims, or label additional valid bugs. First verification of each critical bug earns one global +10; after two wrong claims each further rejected claim costs -5. An extra valid bug earns +5 once per unique team label. Reports cannot exceed 150 words.
 9. Close all rounds, clear every review, audit adjustments, export the results, then finalize. Finalization publishes results and freezes score-changing actions. Certificates include participation, finalist, places, and supported special awards.
 
+## Staff answer guides
+
+Each review displays the current question's short expected answer, marking criteria and mark limits. Participant fields follow the question's field order and readable labels. The suggested score is advisory; the judge enters the final marks.
+
+Concise guide text is stored privately in `bughunt.answer_keys.explanation`. Keep `private/marking-guides.json` outside Git and frontend assets. `npm run db:guides` from `backend/` backs up the previous explanations, updates only that text and checks that accepted answers and rubrics are identical. Fresh question-bank seeding uses this private guide file when present. Existing submissions and scores are not recalculated by an editorial guide update.
+
 ## After the event
 
 Keep private backups and exports according to institutional policy. Review personal-data retention after 90 days. No deletion job runs automatically; all destructive maintenance needs explicit approval. Archive the question bank outside public repositories. Do not expose the original PDFs or organizer answer keys as frontend assets.

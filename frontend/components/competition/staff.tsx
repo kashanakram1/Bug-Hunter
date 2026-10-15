@@ -801,7 +801,7 @@ function SubmissionReview({ item: s, refresh }: any) {
         <Chip>Attempt {s.attempt}</Chip>
       </header>
       <div className="review-grid">
-        <div>
+        <div className="review-answer">
           <details>
             <summary>View question</summary>
             <pre className="question-prompt">
@@ -809,22 +809,35 @@ function SubmissionReview({ item: s, refresh }: any) {
               {s.code}
             </pre>
           </details>
-          {Object.entries(s.answer).map(([key, value]) => (
-            <div key={key}>
-              <span className="eyebrow">{key}</span>
-              <pre className="answer-text">{String(value)}</pre>
+          <h4 className="review-section-label">Team answer</h4>
+          {(s.fields?.length ? s.fields : Object.keys(s.answer).map(key => ({key, label: key}))).map((field: {key: string; label: string}) => (
+            <div key={field.key}>
+              <span className="review-answer-label">{field.label}</span>
+              <pre className="answer-text">{String(s.answer[field.key] ?? '—')}</pre>
             </div>
           ))}
         </div>
-        <div className="key-box">
-          <h3>Official marking guide</h3>
-          {s.explanation}
-          <p className="review-note">
-            Suggested score: {s.suggested_score}/{s.max_points}. This is advisory; review equivalent
-            answers fairly.
+        <aside className="marking-guide" aria-label={`Answer guide for ${s.title}`}>
+          <header>
+            <h3>Answer guide</h3>
+            <span className="chip">{s.max_points} marks</span>
+          </header>
+          <div className="marking-guide-summary">
+            {s.explanation.length <= 900 && !s.explanation.includes('(ORGANIZERS ONLY)')
+              ? s.explanation.split('\n').filter(Boolean).map((line: string, index: number) => <p key={index}>{line}</p>)
+              : <p>Use the criteria below. A concise answer guide has not been added for this question yet.</p>}
+          </div>
+          <ul className="marking-guide-criteria" aria-label="Marking criteria">
+            {s.rubric.map((r: {key: string; label: string; max: number}) => (
+              <li key={r.key}><span>{r.label}</span><strong>{r.max} marks</strong></li>
+            ))}
+          </ul>
+          <p className="marking-guide-note">
+            Suggested: <strong>{s.suggested_score}/{s.max_points}</strong>. You choose the final score; accept equivalent correct answers.
           </p>
-        </div>
+        </aside>
       </div>
+      <h4 className="review-section-label">Enter marks</h4>
       <div className="rubric">
         {s.rubric.map((r: any) => (
           <label className="field" key={r.key}>
