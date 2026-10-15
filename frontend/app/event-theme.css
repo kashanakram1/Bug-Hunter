@@ -244,8 +244,8 @@ input:-webkit-autofill { -webkit-text-fill-color: var(--foreground); box-shadow:
 .footer-credit p { margin: 12px 0 10px; font-family: 'Segoe UI', Arial, sans-serif; font-size: .85rem; }
 .footer-eyebrow { display: block; color: #ff6378; font-size: .61rem; letter-spacing: .22em; }
 .footer-eyebrow > span { margin-right: 8px; color: var(--primary); }
-.footer-author { display: inline-flex; align-items: center; gap: 12px; color: var(--foreground); font-size: .79rem; letter-spacing: .14em; }
-.footer-author > span { color: #ff526a; font-size: 1rem; letter-spacing: -.07em; }
+.site-footer .footer-author { display: inline-flex; align-items: center; gap: 10px; color: var(--foreground); font-size: 1rem; font-weight: 700; letter-spacing: .12em; }
+.footer-author > svg { color: #ff526a; }
 .footer-institution { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; font-size: .74rem; }
 .footer-event { color: #c298a6; font-size: .64rem; letter-spacing: .12em; }
 .footer-institution > strong { font-family: var(--event-mono); color: #e5ced7; font-size: .72rem; font-weight: 500; letter-spacing: .1em; }
