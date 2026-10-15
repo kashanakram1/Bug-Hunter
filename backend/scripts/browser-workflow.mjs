@@ -115,14 +115,12 @@ assert.equal(
   '3 3 3',
 );
 await team.getByRole('button', { name: 'Submit answer', exact: true }).click();
-await team.getByRole('button', { name: 'Confirm submission' }).click();
 await team.getByRole('button', { name: 'Answer locked' }).waitFor();
 await team.getByRole('button', { name: /The Shared Bucket/ }).click();
 await team.getByLabel('A · First printed list').fill('[1]');
 await team.getByLabel('A · Second printed list').fill('[1,2]');
 await team.getByLabel('B · Name the bug').fill('A mutable default list is shared across calls');
 await team.getByRole('button', { name: 'Submit answer', exact: true }).click();
-await team.getByRole('button', { name: 'Confirm submission' }).click();
 await team.getByRole('button', { name: 'Answer locked' }).waitFor();
 await team.getByRole('tab', { name: 'Clarifications' }).click();
 await team.getByLabel('Your question').fill('Please clarify the incident report word limit.');
@@ -195,7 +193,6 @@ await team
     'Prioritize login injection, patient identity spoofing, and unscoped appointment access. These expose medical data and permit account compromise. Validate credentials, derive patient identity from authentication, and restrict appointment queries to the current patient.',
   );
 await team.getByRole('button', { name: 'Submit answer', exact: true }).click();
-await team.getByRole('button', { name: 'Confirm submission' }).click();
 await team.getByRole('button', { name: 'Answer locked' }).waitFor();
 await staff.getByRole('tab', { name: 'Final claims' }).click();
 await staff.getByRole('combobox', { name: 'Match official bug' }).selectOption('3');

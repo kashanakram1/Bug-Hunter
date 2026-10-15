@@ -603,8 +603,7 @@ function QuestionEditor({ question: q, draft, submissions, canEdit, refresh, cac
     ),
     [save, setSave] = useState(''),
     [error, setError] = useState(''),
-    [busy, setBusy] = useState(false),
-    [confirm, setConfirm] = useState(false);
+    [busy, setBusy] = useState(false);
   const revision = useRef(draft?.revision || 0),
     request = useRef(uuid()),
     dirty = useRef(false),
@@ -669,6 +668,7 @@ function QuestionEditor({ question: q, draft, submissions, canEdit, refresh, cac
     setSave('Unsaved changes');
   }
   async function submit() {
+    if (locked || busy) return;
     setBusy(true);
     setError('');
     try {
@@ -679,7 +679,6 @@ function QuestionEditor({ question: q, draft, submissions, canEdit, refresh, cac
       });
       dirty.current = false;
       request.current = uuid();
-      setConfirm(false);
       setSave('Submission recorded');
       await refresh();
       toast.success('Submission recorded');
@@ -740,10 +739,10 @@ function QuestionEditor({ question: q, draft, submissions, canEdit, refresh, cac
             (q.kind === 'report' && words > 150) ||
             q.fields.some((f: any) => !answer[f.key]?.trim())
           }
-          onClick={() => setConfirm(true)}
+          onClick={submit}
         >
           <></>
-          {attempts >= q.max_attempts ? 'Answer locked' : 'Submit answer'}
+          {busy ? 'Submitting…' : attempts >= q.max_attempts ? 'Answer locked' : 'Submit answer'}
         </button>
       </div>
       {attempts > 0 && (
@@ -751,18 +750,6 @@ function QuestionEditor({ question: q, draft, submissions, canEdit, refresh, cac
           Submission recorded. Solutions and scores stay hidden during the competition.
         </p>
       )}
-      <Confirm
-        open={confirm}
-        title={q.max_attempts === 1 ? 'Lock in your answer?' : 'Submit this attempt?'}
-        text={
-          q.max_attempts === 1
-            ? 'You have one submission for this question. You cannot edit it after confirmation.'
-            : `This uses attempt ${attempts + 1} of ${q.max_attempts}. Your best judged attempt counts.`
-        }
-        onCancel={() => setConfirm(false)}
-        onConfirm={submit}
-        busy={busy}
-      />
     </div>
   );
 }
