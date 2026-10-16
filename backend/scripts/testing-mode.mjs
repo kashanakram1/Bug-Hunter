@@ -1,4 +1,4 @@
-// Explicit operator action: persistent testing, with no automatic timeout or data reset.
+// Explicit operator action: keep portal entry open; real round clocks and saved attempts remain.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { spawnSync } from 'node:child_process';
@@ -33,4 +33,4 @@ if (mode !== 'status') {
     end $$;
     select jsonb_build_object('changed',true); commit;`);
 }
-console.log(JSON.stringify(run(`select jsonb_build_object('testing',unlimited_testing,'window',bughunt.online_window(),'official_starts_at',online_starts_at,'rounds',bughunt.online_rounds((select jsonb_agg(to_jsonb(r) order by id) from bughunt.rounds r))) from bughunt.event where id;`)));
+console.log(JSON.stringify(run(`select jsonb_build_object('access_override',unlimited_testing,'window',bughunt.online_window(),'official_starts_at',online_starts_at,'rounds',bughunt.online_rounds((select jsonb_agg(to_jsonb(r) order by id) from bughunt.rounds r))) from bughunt.event where id;`)));

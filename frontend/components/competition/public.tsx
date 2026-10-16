@@ -151,13 +151,12 @@ export function PublicScreen({ certificate }: { certificate: boolean }) {
             </h2>
             <Timer
               large
-              unlimited={Boolean(data.online?.testing)}
               end={data.countdown}
               serverTime={data.server_time}
               pausedAt={current?.paused_at}
             />
             <p className="muted">
-              {data.active_teams} teams connected · {data.online?.testing ? 'All four rounds open for testing' : 'Timer shows the latest active team deadline'}
+              {data.active_teams} teams connected · Timer shows the latest active team deadline
             </p>
           </section>
           {data.first_blood.length > 0 && (

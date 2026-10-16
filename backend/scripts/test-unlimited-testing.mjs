@@ -73,16 +73,16 @@ try {
   await db.exec("update bughunt.event set unlimited_testing=true,onsite_date='2099-01-01' where id; update bughunt.rounds set status='paused',paused_at=now()");
   await check('All four tests open despite future schedule and paused rounds',async()=>{
     const boot=await val('select public.bh_bootstrap()');
-    assert.equal(boot.online.testing,true); assert.equal(boot.online.enabled,false);
+    assert.equal(boot.online.access_override,true); assert.equal(boot.online.enabled,false);
     assert.equal(boot.online.ends_at,null); assert.equal(boot.rounds.length,4);
     assert.ok(boot.rounds.every(r=>r.status==='open' && r.paused_at===null));
     assert.equal((await val('select public.bh_team_state(4)')).questions.length,0);
   });
   await check('Enter final first without qualification or on-site date',async()=>{
     const session=await val('select public.bh_start_round(4)');
-    assert.equal(session.ends_at,null); assert.equal(session.completed_at,null);
+    assert.ok(Math.abs(Date.parse(session.ends_at)-Date.parse(session.started_at)-2400000)<100); assert.equal(session.completed_at,null);
     const state=await val('select public.bh_team_state(4)');
-    assert.equal(state.testing,true); assert.ok(state.questions.length>0);
+    assert.equal(state.access_override,true); assert.ok(state.questions.length>0);
     assert.ok(state.questions.some(q=>q.kind==='arena'));
     const request=randomUUID();
     const claim=await val("select public.bh_claim('test location','test cause','test impact','test fix',$1)",[request]);
@@ -92,7 +92,7 @@ try {
     for (const r of [3,1,2]) {
       await val('select public.bh_start_round($1)',[r]);
       const state=await val('select public.bh_team_state($1)',[r]);
-      assert.ok(state.questions.length>0); assert.equal(state.session.ends_at,null);
+      assert.ok(state.questions.length>0); assert.ok(Math.abs(Date.parse(state.session.ends_at)-Date.parse(state.session.started_at)-({1:1200000,2:1800000,3:1800000}[r]))<100);
       assert.equal(state.self_progression,false); assert.equal(state.online_entered,false);
       const q=state.questions[0], answer=Object.fromEntries(q.fields.map(f=>[f.key,'testing answer']));
       await val('select public.bh_save_draft($1,$2,0)',[q.id,JSON.stringify(answer)]);
@@ -112,8 +112,18 @@ try {
     await db.query("insert into bughunt.round_sessions(team_id,round_id,started_at,ends_at,completed_at) values($1,1,now()-interval '2 days',now()-interval '1 day',now()-interval '1 day')",[t]);
     const before=await val('select to_jsonb(s) from bughunt.round_sessions s where team_id=$1',[t]);
     await window(-1000);
-    for(const r of [1,2,3,4]) { await val('select public.bh_start_round($1)',[r]); assert.equal((await val('select public.bh_team_state($1)',[r])).session.ends_at,null); }
+    for(const r of [1,2,3,4]) { await val('select public.bh_start_round($1)',[r]); assert.ok((await val('select public.bh_team_state($1)',[r])).session.ends_at); }
     assert.deepEqual(await val('select to_jsonb(s) from bughunt.round_sessions s where team_id=$1',[t]),before);
+  });
+  await check('Server rejects expired rounds and enforces the total 80-minute online cutoff',async()=>{
+    await db.query("update bughunt.testing_sessions set completed_at=null,ends_at=now()-interval '1 second' where team_id=$1 and round_id=1",[t]);
+    await assert.rejects(()=>val('select bughunt.assert_round($1,1)',[t]),/Round time has ended/);
+    await db.query("update bughunt.testing_sessions set completed_at=null,started_at=now()-interval '81 minutes',ends_at=now()+interval '1 hour' where team_id=$1 and round_id=3",[t]);
+    await assert.rejects(()=>val('select public.bh_start_round(2)'),/80-minute/);
+    await assert.rejects(()=>val('select bughunt.assert_round($1,2)',[t]),/Round time has ended/);
+    assert.ok(Date.parse((await val('select public.bh_team_state(2)')).session.ends_at)<Date.now());
+    // The separate 40-minute final is unaffected by the online cutoff.
+    assert.ok((await val('select public.bh_start_round(4)')).ends_at);
   });
   await check('Pending teams cannot enter and browser roles cannot read test sessions',async()=>{
     await team('pending');
@@ -127,5 +137,5 @@ try {
     await assert.rejects(()=>val('select public.bh_start_round(1)'),/scheduled window/);
     await assert.rejects(()=>val('select public.bh_start_round(4)'),/on-site date/);
   });
-  console.log(count+' unlimited testing checks passed');
+  console.log(count+' timed portal access checks passed');
 } finally { await db.close(); }
