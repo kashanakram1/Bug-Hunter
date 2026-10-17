@@ -19,7 +19,8 @@
     "check:live": "node scripts/live-check.mjs",
     "test:security": "node scripts/test-security.mjs",
     "test:online": "node scripts/test-online-schedule.mjs",
-    "test:testing": "node scripts/test-unlimited-testing.mjs"
+    "test:testing": "node scripts/test-unlimited-testing.mjs",
+    "test:registration": "node scripts/test-registration-concurrency.mjs"
   },
   "dependencies": {
     "pg": "8.23.1"
