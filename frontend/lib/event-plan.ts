@@ -1,8 +1,8 @@
 export const eventPlan = {
   name: 'Bug Hunter Module-5',
   timezone: 'Asia/Karachi',
-  onlineStart: '2026-10-17T16:00:00+05:00',
-  entryClose: '2026-10-17T16:20:00+05:00',
+  onlineStart: '2026-10-18T16:00:00+05:00',
+  entryClose: '2026-10-18T16:30:00+05:00',
   onsiteDate: '2026-10-22',
 } as const;
 

@@ -43,7 +43,7 @@ const check = async (name, fn) => {
 };
 async function window(offset) {
   await db.exec(
-    `update bughunt.event set online_enabled=true,online_starts_at=now()+interval '${offset} minutes',online_entry_closes_at=now()+interval '${offset + 20} minutes',online_ends_at=now()+interval '${offset + 100} minutes' where id`,
+    `update bughunt.event set online_enabled=true,online_starts_at=now()+interval '${offset} minutes',online_entry_closes_at=now()+interval '${offset + 30} minutes',online_ends_at=now()+interval '${offset + 110} minutes' where id`,
   );
 }
 async function team(status = "approved", staff = false) {
@@ -68,6 +68,16 @@ async function team(status = "approved", staff = false) {
   return t;
 }
 try {
+  await check('Final configuration matches the approved 18 October schedule', async () => {
+    const e = await val('select to_jsonb(e) from bughunt.event e where id');
+    assert.equal(e.unlimited_testing, false);
+    assert.equal(e.online_enabled, true);
+    assert.equal(Date.parse(e.online_starts_at), Date.parse('2026-10-18T16:00:00+05:00'));
+    assert.equal(Date.parse(e.online_entry_closes_at), Date.parse('2026-10-18T16:30:00+05:00'));
+    assert.equal(Date.parse(e.online_ends_at), Date.parse('2026-10-18T17:50:00+05:00'));
+    assert.deepEqual((await db.query('select duration_seconds from bughunt.rounds order by id')).rows.map(r => r.duration_seconds), [1200,1800,1800,2400]);
+    assert.equal(await val('select status from bughunt.rounds where id=4'), 'draft');
+  });
   await window(10);
   let t = await team();
   await check(
@@ -195,15 +205,15 @@ try {
       );
     },
   );
-  await window(-20);
-  await check("Entry closes at the exact 20-minute boundary", async () => {
+  await window(-30);
+  await check("Entry closes at the exact 30-minute boundary", async () => {
     await team();
     await assert.rejects(
       () => val("select public.bh_start_round(1)"),
       /entry window/,
     );
   });
-  await window(-19);
+  await window(-29);
   await check("A late entrant still receives 80 minutes", async () => {
     t = await team();
     await val("select public.bh_start_round(1)");
@@ -219,7 +229,7 @@ try {
   await check(
     "Reconnection after entry closes resumes an existing team",
     async () => {
-      await window(-21);
+      await window(-31);
       const s = await val("select public.bh_start_round(1)");
       assert.equal(s.team_id, t);
     },
@@ -288,7 +298,7 @@ try {
         );
     },
   );
-  await window(-101);
+  await window(-111);
   await check(
     "After the latest deadline: all online rounds display closed",
     async () => {
@@ -309,7 +319,7 @@ try {
     await db.exec('update bughunt.event set results_released=false where id');
   });
   await check("The final is date-gated and requires published qualification", async () => {
-    await window(-101);
+    await window(-111);
     const finalist = await team('approved', true);
     await db.exec("update bughunt.rounds set status='open' where id=4; update bughunt.event set onsite_date=(clock_timestamp() at time zone event_timezone)::date+1 where id");
     await assert.rejects(() => val('select public.bh_start_round(4)'), /on-site date/);

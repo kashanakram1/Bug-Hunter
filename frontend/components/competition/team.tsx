@@ -451,7 +451,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   <ol className="rules">
                     <li>
                       {accessOpen ? 'Rounds 1, 2, and 3 last 20, 30, and 30 minutes, with up to 80 minutes online. The final lasts 40 minutes. Your timer starts when you enter.' : scheduled
-                        ? 'Enter during the scheduled 20-minute entry window. Your competition clock starts when you enter Round 1.'
+                        ? 'Enter during the scheduled 30-minute entry window. Your competition clock starts when you enter Round 1.'
                         : progression ? 'Enter through Round 1 when the competition opens. Move forward whenever you are ready; earlier answers will lock.' : 'Only start when the organizer opens your round. Your timer starts when you enter.'}
                     </li>
                     <li>

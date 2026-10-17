@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Code Connect 26 | Bug Hunter Module-5',
   description:
-    'Bug Hunter Module-5 at Code Connect 26. Online rounds on 17 October 2026 and a qualified-team on-site final on 22 October 2026.',
+    'Bug Hunter Module-5 at Code Connect 26. Online rounds on 18 October 2026 and a qualified-team on-site final on 22 October 2026.',
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',

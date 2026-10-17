@@ -12,8 +12,8 @@ try {
   const online = {
     enabled: true,
     starts_at: new Date(starts).toISOString(),
-    entry_closes_at: new Date(starts + 1200000).toISOString(),
-    ends_at: new Date(starts + 6000000).toISOString(),
+    entry_closes_at: new Date(starts + 1800000).toISOString(),
+    ends_at: new Date(starts + 6600000).toISOString(),
   };
   const names = [
     "Bug Blitz",
