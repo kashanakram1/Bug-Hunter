@@ -40,7 +40,7 @@ export function SiteFooter() {
         <div className="footer-credit">
           <span className="footer-eyebrow"><span aria-hidden="true">//</span> ENGINEERED BY</span>
           <p>Designed &amp; developed by</p>
-          <a className="footer-author" href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" aria-label="Kashan Akram — LinkedIn (opens in a new tab)">
+          <a className="footer-author" href="https://www.linkedin.com/in/kashan-akram-0683aa315/" target="_blank" rel="noopener noreferrer" aria-label="Kashan Akram — LinkedIn (opens in a new tab)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
               <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6Z" />
               <rect x="2" y="9" width="4" height="12" />
