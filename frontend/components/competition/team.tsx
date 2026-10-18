@@ -111,9 +111,13 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
   const session = data?.session;
   const current = data?.round;
   const online = data?.online || boot.online;
+  const round2Exception = data?.round2_exception;
   const accessOpen = Boolean(online?.access_override);
-  const scheduled = !accessOpen && Boolean(online?.enabled);
-  const progression = !accessOpen && (scheduled || Boolean(boot.event?.self_progression || data?.self_progression));
+  const scheduled = !round2Exception && !accessOpen && Boolean(online?.enabled);
+  const progression = !round2Exception && !accessOpen && (scheduled || Boolean(boot.event?.self_progression || data?.self_progression));
+  useEffect(() => {
+    if (round2Exception?.phase === 'active' && round !== 2) setRound(2);
+  }, [round2Exception?.phase, round]);
   useEffect(() => {
     if (data?.server_time) {
       clockAnchor.current = {
@@ -139,7 +143,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
   useEffect(() => {
     const key = String(round) + ':' + session?.ends_at;
     if (
-      scheduled &&
+      (scheduled || round2Exception) &&
       round &&
       session &&
       !session.completed_at &&
@@ -149,7 +153,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
       expiredRefresh.current = key;
       void refresh();
     }
-  }, [progression, round, session?.ends_at, session?.completed_at, serverNow, refresh]);
+  }, [scheduled, round2Exception?.phase, round, session?.ends_at, session?.completed_at, serverNow, refresh]);
   useEffect(() => {
     if (!lease) return;
     const flush = async () => {
@@ -245,7 +249,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
       await rpc('bh_finish_round', { p_round: round });
       setFinish(false);
       await refresh();
-      if (accessOpen) setRound(0);
+      if (accessOpen || round2Exception) setRound(0);
       toast.success('Round completed. Your submissions are recorded.');
     } catch (e) {
       setError(message(e));
@@ -304,6 +308,16 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
           </Chip>
         )}
       </div>
+      {round2Exception && (
+        <section className="notice" aria-label="Reopened Round 2">
+          {round2Exception.phase === 'ready'
+            ? 'Round 2 is reopened for your team. The shared 30-minute timer starts when the first member enters.'
+            : round2Exception.phase === 'active'
+              ? 'Your reopened Round 2 is in progress. All team devices share the same deadline; refreshing does not restart the timer.'
+              : 'Your reopened Round 2 has ended. Further submissions are locked.'}
+          {' '}Your Round 1 and Round 3 records are preserved and remain locked.
+        </section>
+      )}
       {scheduled && (
         <section className="notice" aria-label="Online competition schedule">
           <p>
@@ -341,22 +355,22 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                 <div className="stat">
                   <></>
                   <span>Competition format</span>
-                  <strong>{scheduled || accessOpen ? '3 online + final' : '4 rounds'}</strong>
+                  <strong>{round2Exception ? 'Round 2' : scheduled || accessOpen ? '3 online + final' : '4 rounds'}</strong>
                 </div>
                 <div className="stat">
                   <></>
                   <span>Total round time</span>
-                  <strong>{scheduled || accessOpen ? '80 min online' : '120 min'}</strong>
+                  <strong>{round2Exception ? '30 minutes' : scheduled || accessOpen ? '80 min online' : '120 min'}</strong>
                 </div>
                 <div className="stat">
                   <></>
                   <span>Available points</span>
-                  <strong>{scheduled ? '600 online' : '1,100'}</strong>
+                  <strong>{round2Exception ? '200' : scheduled ? '600 online' : '1,100'}</strong>
                 </div>
                 <div className="stat">
                   <></>
-                  <span>{scheduled ? 'Progression' : 'Critical-fix bonus'}</span>
-                  <strong>{scheduled ? 'One way' : '+30'}</strong>
+                  <span>{round2Exception ? 'Status' : scheduled ? 'Progression' : 'Critical-fix bonus'}</span>
+                  <strong>{round2Exception ? round2Exception.phase : scheduled ? 'One way' : '+30'}</strong>
                 </div>
               </div>
               {boot.team.status !== 'approved' && (
@@ -374,7 +388,18 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                 </div>
               )}
               <div className="round-grid">
-                {rounds
+                {round2Exception ? (
+                  <article className="round-card available">
+                    <span className="round-index">02</span>
+                    <Chip>{round2Exception.phase === 'ready' ? 'Reopened' : round2Exception.phase}</Chip>
+                    <h3>{rounds[1].name}</h3>
+                    <p>{rounds[1].description}</p>
+                    <div className="round-meta">30 MIN · 200 PTS · {rounds[1].count.toUpperCase()}</div>
+                    <button className="btn" disabled={busy || !['ready','active'].includes(round2Exception.phase)} onClick={() => start(2)}>
+                      {round2Exception.phase === 'ready' ? 'Enter Round 2' : round2Exception.phase === 'active' ? 'Continue Round 2' : 'Round 2 ended'}
+                    </button>
+                  </article>
+                ) : rounds
                   .filter(
                     (r) =>
                       !scheduled ||
@@ -450,7 +475,7 @@ export function TeamPortal({ boot, refreshBoot }: { boot: any; refreshBoot: () =
                   </div>
                   <ol className="rules">
                     <li>
-                      {accessOpen ? 'Rounds 1, 2, and 3 last 20, 30, and 30 minutes, with up to 80 minutes online. The final lasts 40 minutes. Your timer starts when you enter.' : scheduled
+                      {round2Exception ? 'Enter reopened Round 2 when your team is ready. The first entry starts one shared 30-minute countdown across all devices.' : accessOpen ? 'Rounds 1, 2, and 3 last 20, 30, and 30 minutes, with up to 80 minutes online. The final lasts 40 minutes. Your timer starts when you enter.' : scheduled
                         ? 'Enter during the scheduled 30-minute entry window. Your competition clock starts when you enter Round 1.'
                         : progression ? 'Enter through Round 1 when the competition opens. Move forward whenever you are ready; earlier answers will lock.' : 'Only start when the organizer opens your round. Your timer starts when you enter.'}
                     </li>
